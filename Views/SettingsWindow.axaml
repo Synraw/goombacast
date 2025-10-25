@@ -6,14 +6,14 @@
 		mc:Ignorable="d"
 		x:Class="GoombaCast.Views.SettingsWindow"
 		x:DataType="vm:SettingsWindowViewModel"
-		Width="550" Height="600"
-		Icon="/Assets/avalonia-logo.ico"
-		Title="GoombaCast"
+		Width="450" Height="450"
+		Icon="/Assets/goomba-logo.ico"
+		Title="GoombaCast Settings"
 		CanResize="False"
 		TransparencyLevelHint="AcrylicBlur"
 		Background="Transparent"
 		ExtendClientAreaToDecorationsHint="True"
-		WindowStartupLocation="CenterScreen">
+		WindowStartupLocation="CenterOwner">
 
 	<Panel>
 		<ExperimentalAcrylicBorder IsHitTestVisible="False">
@@ -26,5 +26,7 @@
 			</ExperimentalAcrylicBorder.Material>
 		</ExperimentalAcrylicBorder>
 	</Panel>
+
+
 
 </Window>

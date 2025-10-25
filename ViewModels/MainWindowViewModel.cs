@@ -28,6 +28,11 @@ namespace GoombaCast.ViewModels
         public void WriteLineToLog(string message)
             => LogLines += message + "\n";
 
+        public MainWindowViewModel()
+        {
+            _windowTitle = "GoombaCast";
+        }
+
         public MainWindowViewModel(AudioEngine audio)
         {
             // These callbacks are already marshalled to UI thread via CallbackContext

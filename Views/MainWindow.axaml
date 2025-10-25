@@ -15,6 +15,10 @@
 		ExtendClientAreaToDecorationsHint="True"
 		WindowStartupLocation="CenterScreen">
 
+	<Design.DataContext>
+		<vm:MainWindowViewModel/>
+	</Design.DataContext>
+
 	<Panel>
 		<ExperimentalAcrylicBorder IsHitTestVisible="False">
 			<ExperimentalAcrylicBorder.Material>
@@ -29,6 +33,9 @@
 		<Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
 			  ColumnDefinitions="Auto,Auto,Auto,*"
 			  ShowGridLines="False">
+
+			<Image Source="/Assets/goomba-logo.ico" Width="32" Height="32" Margin="5" 
+				   IsHitTestVisible="False" HorizontalAlignment="Left" />
 
 			<TextBlock FontSize="16" Grid.ColumnSpan="5" IsHitTestVisible="False" TextAlignment="Center" Margin="5">
 				<Run Text="{Binding WindowTitle}"/>
@@ -61,7 +68,8 @@
 
 			<Button Grid.Row="2" Grid.Column="3" Margin="5"
 					HorizontalAlignment="Stretch" 
-					HorizontalContentAlignment="Center">
+					HorizontalContentAlignment="Center"
+					Click="ButtonClickOpenSettings">
 				Settings
 			</Button>
 			<Button x:Name="LogHideShowButton" Grid.Row="3" Grid.Column="3" Margin="5"

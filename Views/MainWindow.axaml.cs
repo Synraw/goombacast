@@ -15,5 +15,15 @@ namespace GoombaCast.Views
             LogWindow.IsVisible = !LogWindow.IsVisible;
             LogHideShowButton.Content = LogWindow.IsVisible ? "Hide Log" : "Show Log";
         }
+
+        private async void ButtonClickOpenSettings(object? sender, RoutedEventArgs e)
+        {
+            var dlg = new SettingsWindow
+            {
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+
+            await dlg.ShowDialog(this); 
+        }
     }
 }
