@@ -7,7 +7,7 @@
 		x:Class="GoombaCast.Views.MainWindow"
 		x:DataType="vm:MainWindowViewModel"
 		Width="550" Height="600"
-		Icon="/Assets/avalonia-logo.ico"
+		Icon="/Assets/goomba-logo.ico"
 		Title="GoombaCast"
 		CanResize="False"
 		TransparencyLevelHint="AcrylicBlur"
