@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:vm="using:GoombaCast.ViewModels"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		mc:Ignorable="d"
+		x:Class="GoombaCast.Views.MainWindow"
+		x:DataType="vm:MainWindowViewModel"
+		Width="550" Height="600"
+		Icon="/Assets/avalonia-logo.ico"
+		Title="GoombaCast"
+		CanResize="False"
+		TransparencyLevelHint="AcrylicBlur"
+		Background="Transparent"
+		ExtendClientAreaToDecorationsHint="True"
+		WindowStartupLocation="CenterScreen">
+
+	<Design.DataContext>
+		<vm:MainWindowViewModel/>
+	</Design.DataContext>
+
+	<Panel>
+		<ExperimentalAcrylicBorder IsHitTestVisible="False">
+			<ExperimentalAcrylicBorder.Material>
+				<ExperimentalAcrylicMaterial
+				BackgroundSource="Digger"
+				TintColor="Black"
+				TintOpacity="1"
+				MaterialOpacity="0.65" />
+			</ExperimentalAcrylicBorder.Material>
+		</ExperimentalAcrylicBorder>
+
+		<Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+			  ColumnDefinitions="Auto,Auto,Auto,*"
+			  ShowGridLines="True">
+
+			<TextBlock FontSize="16" Grid.ColumnSpan="5" IsHitTestVisible="False" TextAlignment="Center" Margin="5">
+				<Run Text="{Binding WindowTitle}"/>
+			</TextBlock>
+
+			<!-- TODO: Add a viewmodel control that has the text with stream timer, listeners, etc-->
+			<Rectangle Grid.Row="1" Grid.ColumnSpan="5" Fill="Black" Height="160" Margin="5,0,5,0" VerticalAlignment="Top" />
+
+			<StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="5" Margin="5">
+				<Button Content="Start Stream" Background="Green"/>
+				<Button Content="Stop" Background="Red" />
+			</StackPanel>
+
+			<Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" Margin="5">
+				<Button Grid.Column="0" Content="Record" 
+						HorizontalAlignment="Stretch" 
+						HorizontalContentAlignment="Center" />
+				<Button Grid.Column="1" Content="Mixer" Margin="5,0,0,0"
+						HorizontalAlignment="Stretch" 
+						HorizontalContentAlignment="Center"/>
+			</Grid>
+
+			<StackPanel Grid.Row="2" Grid.Column="2" Orientation="Vertical" Grid.RowSpan="2" Spacing="5" Margin="5">
+				<TextBlock FontSize="12" TextAlignment="Left" Margin="5,0,-5,-8">Stream Volume</TextBlock>
+				<ProgressBar Height="14" Value="50" Margin="5,5,5,0"/>
+				<TextBlock FontSize="12" TextAlignment="Center" Margin="6,-3,6,-3">
+					-48 -42 -36 -30 -24 -18 -12 -6 0 dB
+				</TextBlock>
+				<ProgressBar Height="14" Value="75" Margin="5,0,5,5"/>
+			</StackPanel>
+
+			<Button Grid.Row="2" Grid.Column="3" Margin="5"
+					HorizontalAlignment="Stretch" 
+					HorizontalContentAlignment="Center">
+				Settings
+			</Button>
+			<Button Grid.Row="3" Grid.Column="3" Margin="5"
+					HorizontalAlignment="Stretch" 
+					HorizontalContentAlignment="Center">
+				Hide Log
+			</Button>
+
+			<Slider Grid.Row="4" Minimum="-24" Maximum="24" />
+
+		</Grid>
+	</Panel>
+</Window>

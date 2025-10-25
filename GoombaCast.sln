@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36616.10 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoombaCast", "GoombaCast.csproj", "{FC22E393-7119-4896-95DE-00258CC7C6F6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FC22E393-7119-4896-95DE-00258CC7C6F6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC22E393-7119-4896-95DE-00258CC7C6F6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC22E393-7119-4896-95DE-00258CC7C6F6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC22E393-7119-4896-95DE-00258CC7C6F6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {37015284-79E6-4AE6-A330-3E3004F1DB7A}
+	EndGlobalSection
+EndGlobal
