@@ -57,11 +57,11 @@
 
 			<StackPanel Grid.Row="2" Grid.Column="2" Orientation="Vertical" Grid.RowSpan="2" Spacing="5" Margin="5">
 				<TextBlock FontSize="12" TextAlignment="Left" Margin="5,0,-5,-8">Stream Volume</TextBlock>
-				<ProgressBar Height="14" Value="50" Margin="5,5,5,0"/>
+				<ProgressBar Height="14" Value="{Binding LeftDb}" Margin="5,5,5,0"/>
 				<TextBlock FontSize="12" TextAlignment="Center" Margin="6,-3,6,-3">
 					-48 -42 -36 -30 -24 -18 -12 -6 0 dB
 				</TextBlock>
-				<ProgressBar Height="14" Value="75" Margin="5,0,5,5"/>
+				<ProgressBar Height="14" Value="{Binding RightDb}" Margin="5,0,5,5"/>
 			</StackPanel>
 
 			<Button Grid.Row="2" Grid.Column="3" Margin="5"
