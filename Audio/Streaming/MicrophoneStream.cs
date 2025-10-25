@@ -26,7 +26,7 @@ namespace GoombaCast.Audio.Streaming
         }
     }
 
-    public sealed class MicrophoneIcecastStreamer : IDisposable
+    public sealed class MicrophoneStream : IDisposable
     {
         private WasapiCapture? _mic;
         private LameMP3FileWriter? _mp3Writer;
@@ -38,7 +38,7 @@ namespace GoombaCast.Audio.Streaming
         private readonly object _handlerLock = new();
         private AudioHandler[] _handlerSnapshot = Array.Empty<AudioHandler>();
 
-        public MicrophoneIcecastStreamer(IcecastStream icecastStream)
+        public MicrophoneStream(IcecastStream icecastStream)
         {
             _iceStream = icecastStream;
             inputDevice = InputDevice.GetActiveInputDevices().First();
