@@ -144,6 +144,8 @@ namespace GoombaCast.Audio.Streaming
             base.Dispose(disposing);
         }
 
+        public bool IsOpen => _open;
+
         // Stream contract
         public override bool CanRead => false;
         public override bool CanSeek => false;
