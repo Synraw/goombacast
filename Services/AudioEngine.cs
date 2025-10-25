@@ -41,6 +41,7 @@ namespace GoombaCast.Services
             _levelMeter.LevelsAvailable += (l, r) => LevelsAvailable?.Invoke(l, r);
 
             _gain = new GainAudioHandler();
+            _gain.GainDb = 0.0f; // Example: +3 dB gain
 
             _micStream = new MicrophoneStream(_icecastStream);
             _micStream.AddAudioHandler(_gain);
