@@ -3,6 +3,7 @@
 		xmlns:vm="using:GoombaCast.ViewModels"
 		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:conv="using:GoombaCast.Converters"
 		mc:Ignorable="d"
 		x:Class="GoombaCast.Views.MainWindow"
 		x:DataType="vm:MainWindowViewModel"
@@ -18,6 +19,19 @@
 	<Design.DataContext>
 		<vm:MainWindowViewModel/>
 	</Design.DataContext>
+
+	<Window.Resources>
+		<conv:DbToBrushConverter x:Key="DbBrush" MinDb="-90" YellowThresholdDb="-18" RedThresholdDb="-6" UseGradient="True"/>
+	</Window.Resources>
+
+	<!-- Ensure Foreground drives the template fill for ProgressBar and Slider in Fluent theme -->
+	<Window.Styles>
+		<!-- ProgressBar indicator fill -->
+		<Style Selector="ProgressBar /template/ Border#PART_Indicator">
+			<Setter Property="Background"
+					Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+		</Style>
+	</Window.Styles>
 
 	<Panel>
 		<ExperimentalAcrylicBorder IsHitTestVisible="False">
@@ -59,11 +73,15 @@
 
 			<StackPanel Grid.Row="2" Grid.Column="2" Orientation="Vertical" Grid.RowSpan="2" Spacing="5" Margin="5">
 				<TextBlock FontSize="12" TextAlignment="Left" Margin="5,0,-5,-8">Stream Volume</TextBlock>
-				<ProgressBar Height="14" Minimum="-90" Maximum="0" Value="{Binding LeftDb}" Margin="5,5,5,0"/>
+				<ProgressBar Height="14" Minimum="-90" Maximum="0"
+							 Value="{Binding LeftDb}" Margin="5,5,5,0"
+							 Foreground="{Binding LeftDb, Converter={StaticResource DbBrush}}"/>
 				<TextBlock FontSize="12" TextAlignment="Center" Margin="6,-3,6,-3">
 					-48 -42 -36 -30 -24 -18 -12 -6 0 dB
 				</TextBlock>
-				<ProgressBar Height="14" Minimum="-90" Maximum="0" Value="{Binding RightDb}" Margin="5,0,5,5"/>
+				<ProgressBar Height="14" Minimum="-90" Maximum="0"
+							 Value="{Binding RightDb}" Margin="5,0,5,5"
+							 Foreground="{Binding RightDb, Converter={StaticResource DbBrush}}"/>
 			</StackPanel>
 
 			<Button Grid.Row="2" Grid.Column="3" Margin="5"
