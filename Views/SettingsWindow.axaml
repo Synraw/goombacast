@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:vm="using:GoombaCast.ViewModels"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		mc:Ignorable="d"
+		x:Class="GoombaCast.Views.SettingsWindow"
+		x:DataType="vm:SettingsWindowViewModel"
+		Width="550" Height="600"
+		Icon="/Assets/avalonia-logo.ico"
+		Title="GoombaCast"
+		CanResize="False"
+		TransparencyLevelHint="AcrylicBlur"
+		Background="Transparent"
+		ExtendClientAreaToDecorationsHint="True"
+		WindowStartupLocation="CenterScreen">
+
+	<Panel>
+		<ExperimentalAcrylicBorder IsHitTestVisible="False">
+			<ExperimentalAcrylicBorder.Material>
+				<ExperimentalAcrylicMaterial
+				BackgroundSource="Digger"
+				TintColor="Black"
+				TintOpacity="1"
+				MaterialOpacity="0.65" />
+			</ExperimentalAcrylicBorder.Material>
+		</ExperimentalAcrylicBorder>
+	</Panel>
+
+</Window>

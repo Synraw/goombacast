@@ -8,7 +8,7 @@ using GoombaCast.Audio.Streaming;
 
 namespace GoombaCast.ViewModels
 {
-    public partial class MainWindowViewModel : ViewModelBase, INotifyPropertyChanged
+    public partial class MainWindowViewModel : ViewModelBase
     {
         [ObservableProperty]
         private string _windowTitle;
@@ -22,20 +22,12 @@ namespace GoombaCast.ViewModels
         [ObservableProperty]
         private float _rightDb;
 
-        //public float LeftDb
-        //{
-        //    get => _leftDb;
-        //    private set { if (_leftDb != value) { _leftDb = value; OnPropertyChanged(); } }
-        //}
-
-        //public float RightDb
-        //{
-        //    get => _rightDb;
-        //    private set { if (_rightDb != value) { _rightDb = value; OnPropertyChanged(); } }
-        //}
-
         [ObservableProperty]
         private string _logLines = string.Empty;
+
+        public void WriteLineToLog(string message)
+            => LogLines += message + "\n";
+
         public MainWindowViewModel(AudioEngine audio)
         {
             // These callbacks are already marshalled to UI thread via CallbackContext
@@ -43,19 +35,14 @@ namespace GoombaCast.ViewModels
             {
                 LeftDb = l;
                 RightDb = r;
-                
             };
 
             foreach (var item in InputDevice.GetActiveInputDevices())
             {
-                _logLines += $"Found input device: {item}\n";
+                WriteLineToLog($"Found input device: {item}");
             }
 
             _windowTitle = "GoombaCast connected to: yeah";
         }
-     
-        //public event PropertyChangedEventHandler? PropertyChanged;
-        //private void OnPropertyChanged([CallerMemberName] string? name = null)
-        //    => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 }

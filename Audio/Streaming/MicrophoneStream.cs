@@ -41,7 +41,7 @@ namespace GoombaCast.Audio.Streaming
         public MicrophoneStream(IcecastStream icecastStream)
         {
             _iceStream = icecastStream;
-            inputDevice = InputDevice.GetActiveInputDevices().First();
+            inputDevice = InputDevice.GetActiveInputDevices().First(); //TODO: Select config marked microphone
         }
 
         public void StartBroadcast()

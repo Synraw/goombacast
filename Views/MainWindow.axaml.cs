@@ -14,9 +14,6 @@ namespace GoombaCast.Views
         {
             LogWindow.IsVisible = !LogWindow.IsVisible;
             LogHideShowButton.Content = LogWindow.IsVisible ? "Hide Log" : "Show Log";
-            var vm = DataContext as ViewModels.MainWindowViewModel;
-            //continue with editing viewmodel stuff
-           
         }
     }
 }
