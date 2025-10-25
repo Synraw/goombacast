@@ -51,7 +51,7 @@ namespace GoombaCast.Audio.Streaming
 
     public class IcecastStream : Stream
     {
-        private readonly IcecastStreamConfig icecastConfig;
+        private readonly IcecastStreamConfig _icecastConfig;
 
         private TcpClient? _tcp;
         private Stream? _net;
@@ -59,7 +59,7 @@ namespace GoombaCast.Audio.Streaming
 
         public IcecastStream(IcecastStreamConfig cfg)
         {
-            icecastConfig = cfg;
+            _icecastConfig = cfg;
         }
 
         public async Task OpenAsync(CancellationToken ct = default)
@@ -67,15 +67,15 @@ namespace GoombaCast.Audio.Streaming
             if (_open) return;
 
             _tcp = new TcpClient();
-            await _tcp.ConnectAsync(icecastConfig.Host, icecastConfig.Port, ct).ConfigureAwait(false);
+            await _tcp.ConnectAsync(_icecastConfig.Host, _icecastConfig.Port, ct).ConfigureAwait(false);
             _net = _tcp.GetStream();
 
-            if (icecastConfig.UseTls)
+            if (_icecastConfig.UseTls)
             {
                 var ssl = new SslStream(_net, leaveInnerStreamOpen: false);
                 await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
                 {
-                    TargetHost = icecastConfig.Host,
+                    TargetHost = _icecastConfig.Host,
                     EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
                 }, ct).ConfigureAwait(false);
                 _net = ssl;
@@ -83,7 +83,7 @@ namespace GoombaCast.Audio.Streaming
 
 
             // Send headers
-            var headerBytes = Encoding.ASCII.GetBytes(icecastConfig.GetIcecastHeaders());
+            var headerBytes = Encoding.ASCII.GetBytes(_icecastConfig.GetIcecastHeaders());
             await _net.WriteAsync(headerBytes, 0, headerBytes.Length, ct).ConfigureAwait(false);
             await _net.FlushAsync(ct).ConfigureAwait(false);
 

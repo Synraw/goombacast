@@ -1,4 +1,5 @@
-﻿using NAudio.CoreAudioApi;
+﻿using GoombaCast.Audio.AudioHandlers;
+using NAudio.CoreAudioApi;
 using NAudio.Lame;
 using NAudio.Wave;
 using System;
@@ -33,6 +34,10 @@ namespace GoombaCast.Audio.Streaming
         private InputDevice inputDevice;
         private volatile bool _running;
 
+        // Handler management (thread-safe snapshot pattern)
+        private readonly object _handlerLock = new();
+        private AudioHandler[] _handlerSnapshot = Array.Empty<AudioHandler>();
+
         public MicrophoneIcecastStreamer(IcecastStream icecastStream)
         {
             _iceStream = icecastStream;
@@ -58,9 +63,21 @@ namespace GoombaCast.Audio.Streaming
                 WaveFormat = waveFormat
             };
 
+            // Notify handlers capture is starting with the selected format
+            var handlers = _handlerSnapshot;
+            foreach (var h in handlers)
+                h.OnStart(waveFormat);
+
             _mic.DataAvailable += (s, a) =>
             {
-                // Push raw PCM to MP3 writer; it will write encoded frames to _shoutStream
+                // Give handlers a chance to inspect/modify PCM before encoding
+                var hs = _handlerSnapshot; // snapshot for this callback
+                for (int i = 0; i < hs.Length; i++)
+                {
+                    var h = hs[i];
+                    if (h.Enabled)
+                        h.ProcessBuffer(a.Buffer, 0, a.BytesRecorded, _mic!.WaveFormat);
+                }
 
                 _mp3Writer.Write(a.Buffer, 0, a.BytesRecorded);
                 //_mp3Writer.Flush(); // keeps latency down (tradeoff: more calls)
@@ -83,11 +100,58 @@ namespace GoombaCast.Audio.Streaming
 
             try { _mic?.StopRecording(); } catch { /* ignore */ }
 
+            // Notify handlers capture is stopping
+            var handlers = _handlerSnapshot;
+            foreach (var h in handlers)
+                h.OnStop();
+
             _mic?.Dispose(); _mic = null;
             _mp3Writer?.Dispose(); _mp3Writer = null;
             _iceStream?.Dispose(); _iceStream = null;
         }
 
         public void Dispose() => Stop();
+
+        // Add/remove handlers. Safe to call before or during capture.
+        public void AddAudioHandler(AudioHandler handler)
+        {
+            if (handler is null) throw new ArgumentNullException(nameof(handler));
+            AudioHandler[] newSnapshot;
+            lock (_handlerLock)
+            {
+                var list = _handlerSnapshot.ToList();
+                list.Add(handler);
+                newSnapshot = list.OrderBy(h => h.Order).ToArray();
+                _handlerSnapshot = newSnapshot;
+            }
+
+            // If already running, notify handler of current format
+            if (_running && _mic != null)
+            {
+                handler.OnStart(_mic.WaveFormat);
+            }
+        }
+
+        public bool RemoveAudioHandler(AudioHandler handler)
+        {
+            if (handler is null) return false;
+            bool removed;
+            lock (_handlerLock)
+            {
+                var list = _handlerSnapshot.ToList();
+                removed = list.Remove(handler);
+                if (removed)
+                {
+                    _handlerSnapshot = list.ToArray();
+                }
+            }
+
+            if (removed && _running)
+            {
+                // Give the handler a chance to cleanup
+                handler.OnStop();
+            }
+            return removed;
+        }
     }
 }
