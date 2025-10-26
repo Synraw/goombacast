@@ -21,19 +21,16 @@ namespace GoombaCast.Services
         // Re-expose levels for view models (already marshalled to UI thread)
         public event Action<float, float>? LevelsAvailable;
 
-        public InputDevice? FindInputDevice(string deviceId)
+        public static InputDevice? FindInputDevice(string deviceId)
             => InputDevice.GetActiveInputDevices().Find(d => d.Id == deviceId);
 
         public AudioEngine(SynchronizationContext? uiContext)
         {
             var settings = SettingsService.Default.Settings;
 
-            if (string.IsNullOrWhiteSpace(settings.ServerAddress))
-                throw new ArgumentNullException(nameof(settings.ServerAddress), "ServerAddress cannot be null or empty.");
+            ArgumentNullException.ThrowIfNull(settings.ServerAddress, nameof(settings.ServerAddress));
 
-            Uri serverUri = new(settings.ServerAddress);
-
-            _icecastStream = new IcecastStream(default);
+            _icecastStream = new IcecastStream(new IcecastStreamConfig()); //TODO: Real config
 
             _levelMeter = new LevelMeterAudioHandler
             {
@@ -50,18 +47,14 @@ namespace GoombaCast.Services
                 GainDb = settings.VolumeLevel
             };
 
-            _micStream = new MicrophoneStream(_icecastStream);
-
             var inputDeviceId = SettingsService.Default.Settings.InputDeviceId;
+            InputDevice? device = null;
             if (inputDeviceId is not null)
             {
-                var device = FindInputDevice(inputDeviceId);
-                if (device is not null)
-                {
-                    _micStream.SetInputDevice(device);
-                }
+                device = FindInputDevice(inputDeviceId);
             }
-
+            
+            _micStream = new MicrophoneStream(_icecastStream, device);
             _micStream.AddAudioHandler(_gain);
             _micStream.AddAudioHandler(_levelMeter);
         }
