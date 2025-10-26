@@ -1,5 +1,5 @@
-using GoombaCast.Audio.AudioHandlers;
-using GoombaCast.Audio.Streaming;
+using GoombaCast.Models.Audio.AudioHandlers;
+using GoombaCast.Models.Audio.Streaming;
 using System;
 using System.Threading;
 
@@ -11,6 +11,12 @@ namespace GoombaCast.Services
         private readonly MicrophoneStream _micStream;
         private readonly LevelMeterAudioHandler _levelMeter;
         private readonly GainAudioHandler _gain;
+
+        public void SetGainLevel(double gainDb) 
+            => _gain.GainDb = gainDb;
+
+        public double GetGainLevel() 
+            => _gain.GainDb;
 
         // Re-expose levels for view models (already marshalled to UI thread)
         public event Action<float, float>? LevelsAvailable;
@@ -37,7 +43,7 @@ namespace GoombaCast.Services
                 UseTls = serverUri.Scheme.Equals("https", StringComparison.CurrentCultureIgnoreCase),
                 ContentType = "audio/mpeg", //TODO: Infer from context
                 StreamName = settings.StreamName ?? "My Local Icecast Stream", 
-                StreamUrl = "http://example.com",
+                StreamUrl = settings.StreamUrl ?? "https://localhost",
                 StreamGenre = "Various"
             });
 
@@ -51,8 +57,10 @@ namespace GoombaCast.Services
 
             _levelMeter.LevelsAvailable += (l, r) => LevelsAvailable?.Invoke(l, r);
 
-            _gain = new GainAudioHandler();
-            _gain.GainDb = 0.0f; // Example: +3 dB gain
+            _gain = new GainAudioHandler
+            {
+                GainDb = settings.VolumeLevel
+            };
 
             _micStream = new MicrophoneStream(_icecastStream);
 

@@ -30,7 +30,13 @@ public class DialogService : IDialogService
         {
             DataContext = viewModel
         };
-        
+
+        // Update main window title when stream name changes
+        if (_mainWindow.DataContext is MainWindowViewModel mainVM)
+        {
+            viewModel.StreamNameChanged += (s, name) => mainVM.UpdateStreamName(name);
+        }
+
         await dialog.ShowDialog(_mainWindow);
     }
 }

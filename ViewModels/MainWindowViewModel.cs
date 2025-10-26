@@ -1,6 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using GoombaCast.Audio.Streaming;
+using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
 using System.Threading.Tasks;
 
@@ -9,6 +9,7 @@ namespace GoombaCast.ViewModels
     public partial class MainWindowViewModel : ViewModelBase
     {
         private readonly IDialogService? _dialogService;
+        private readonly AudioEngine? _audioEngine;
 
         [ObservableProperty]
         private string _windowTitle;
@@ -30,35 +31,42 @@ namespace GoombaCast.ViewModels
         public void WriteLineToLog(string message)
             => LogLines += message + "\n";
 
-        public MainWindowViewModel()
+        public void UpdateStreamName(string streamName)
+            => WindowTitle = $"GoombaCast: {streamName}";
+
+        public MainWindowViewModel() //Only used by Design
         {
             _volumeLevel = SettingsService.Default.Settings.VolumeLevel;
-            _windowTitle = "GoombaCast connected to: yeah";
+            _windowTitle = "GoombaCast connected to: GoombaDesign";
         }
 
         public MainWindowViewModel(AudioEngine audio, IDialogService dialogService)
         {
+            _audioEngine = audio;
+            var settings = SettingsService.Default.Settings;
+
             OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
 
             _dialogService = dialogService;
 
-            _volumeLevel = SettingsService.Default.Settings.VolumeLevel;
+            _volumeLevel = settings.VolumeLevel;
 
-            audio.LevelsAvailable += (l, r) =>
+            _audioEngine.LevelsAvailable += (l, r) =>
             {
                 LeftDb = l;
                 RightDb = r;
             };
+
+            VolumeLevel = (int)_audioEngine.GetGainLevel();
 
             foreach (var item in InputDevice.GetActiveInputDevices())
             {
                 WriteLineToLog($"Found input device: {item}");
             }
 
-            _windowTitle = "GoombaCast connected to: yeah";
+            _windowTitle = $"GoombaCast: {settings.StreamName}";
         }
 
-        // Persist when volume changes
         partial void OnVolumeLevelChanged(int value)
         {
             var s = SettingsService.Default.Settings;
@@ -67,6 +75,7 @@ namespace GoombaCast.ViewModels
                 s.VolumeLevel = value;
                 SettingsService.Default.Save();
             }
+            _audioEngine?.SetGainLevel(value);
         }
 
         private Task OpenSettingsAsync() => 

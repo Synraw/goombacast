@@ -44,12 +44,12 @@
 			</ExperimentalAcrylicBorder.Material>
 		</ExperimentalAcrylicBorder>
 
+		<Image Source="/Assets/goomba-logo.ico" Width="32" Height="32" Margin="5"
+			   IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+
 		<Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
 			  ColumnDefinitions="Auto,Auto,Auto,*"
 			  ShowGridLines="False">
-
-			<Image Source="/Assets/goomba-logo.ico" Width="32" Height="32" Margin="5" 
-				   IsHitTestVisible="False" HorizontalAlignment="Left" />
 
 			<TextBlock FontSize="16" Grid.ColumnSpan="5" IsHitTestVisible="False" TextAlignment="Center" Margin="10">
 				<Run Text="{Binding WindowTitle}"/>
@@ -58,16 +58,16 @@
 			<!-- TODO: Add a viewmodel control that has the text with stream timer, listeners, etc-->
 			<Rectangle Grid.Row="1" Grid.ColumnSpan="5" Fill="Black" Height="160" Margin="5,0,5,0" VerticalAlignment="Top" />
 
-			<Button x:Name="StreamStopStartButton" Grid.Row="2" Content="Start Stream" Background="Green" Margin="5" 
-					HorizontalAlignment="Stretch" 
+			<Button x:Name="StreamStopStartButton" Grid.Row="2" Content="Start Stream" Background="Green" Margin="5"
+					HorizontalAlignment="Stretch"
 					HorizontalContentAlignment="Center"/>
 
 			<Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" Margin="5">
-				<Button Grid.Column="0" Content="Record" 
-						HorizontalAlignment="Stretch" 
+				<Button Grid.Column="0" Content="Record"
+						HorizontalAlignment="Stretch"
 						HorizontalContentAlignment="Center" />
 				<Button Grid.Column="1" Content="Mixer" Margin="5,0,0,0"
-						HorizontalAlignment="Stretch" 
+						HorizontalAlignment="Stretch"
 						HorizontalContentAlignment="Center"/>
 			</Grid>
 
@@ -85,26 +85,27 @@
 			</StackPanel>
 
 			<Button Grid.Row="2" Grid.Column="3" Margin="5"
-					HorizontalAlignment="Stretch" 
+					HorizontalAlignment="Stretch"
 					HorizontalContentAlignment="Center"
 					Command="{Binding OpenSettingsCommand}">
 				Settings
 			</Button>
 			<Button x:Name="LogHideShowButton" Grid.Row="3" Grid.Column="3" Margin="5"
-					HorizontalAlignment="Stretch" 
+					HorizontalAlignment="Stretch"
 					HorizontalContentAlignment="Center"
 					Click="ButtonClickToggleLog">
 				Hide Log
 			</Button>
 
 			<Grid ShowGridLines="False" Grid.Row="4" Grid.ColumnSpan="4" ColumnSpacing="5"
-				RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" >
-				<TextBlock Grid.Column="0" FontSize="10" Text="-24dB" TextAlignment="Left" VerticalAlignment="Center" Margin="5"/>
-				<Slider Grid.Column="1" Minimum="-24" Maximum="24" Value="{Binding VolumeLevel}" DockPanel.Dock="Top" />
+				  RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" >
+				<TextBlock HorizontalAlignment="Center" Grid.ColumnSpan="5">Input Gain</TextBlock>
+				<TextBlock Grid.Column="0" FontSize="10" Text="0dB" TextAlignment="Left" VerticalAlignment="Center" Margin="5"/>
+				<Slider Grid.Column="1" Minimum="0" Maximum="24" Value="{Binding VolumeLevel}" DockPanel.Dock="Top" />
 				<TextBlock Grid.Column="2" FontSize="10" Text="+24dB" TextAlignment="Right" VerticalAlignment="Center" Margin="5"/>
 			</Grid>
 
-			<TextBox Grid.Row="5" Grid.ColumnSpan="4" x:Name="LogWindow" 
+			<TextBox Grid.Row="5" Grid.ColumnSpan="4" x:Name="LogWindow"
 					 Text="{Binding LogLines}" Margin="5" IsReadOnly="True" TextWrapping="Wrap" />
 		</Grid>
 	</Panel>

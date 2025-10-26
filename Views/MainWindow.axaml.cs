@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using GoombaCast.ViewModels;
 using System;
 
 namespace GoombaCast.Views

@@ -1,4 +1,4 @@
-﻿using GoombaCast.Audio.AudioHandlers;
+﻿using GoombaCast.Models.Audio.AudioHandlers;
 using NAudio.CoreAudioApi;
 using NAudio.Lame;
 using NAudio.Wave;
@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace GoombaCast.Audio.Streaming
+namespace GoombaCast.Models.Audio.Streaming
 {
     // Wrapper for MMDevice to represent input device the user can choose
     public class InputDevice(MMDevice device)

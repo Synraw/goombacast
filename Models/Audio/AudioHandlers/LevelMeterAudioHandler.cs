@@ -2,7 +2,7 @@ using NAudio.Wave;
 using System;
 using System.Threading;
 
-namespace GoombaCast.Audio.AudioHandlers
+namespace GoombaCast.Models.Audio.AudioHandlers
 {
     // Publishes stereo dBFS levels for UI without modifying audio.
     public sealed class LevelMeterAudioHandler : AudioHandler
@@ -51,13 +51,13 @@ namespace GoombaCast.Audio.AudioHandlers
 
                 for (int i = 0; i < frames; i++)
                 {
-                    short l = (short)(buffer[idx] | (buffer[idx + 1] << 8));
+                    short l = (short)(buffer[idx] | buffer[idx + 1] << 8);
                     double nl = l / 32768.0;
                     sumL += nl * nl;
 
                     if (channels > 1)
                     {
-                        short r = (short)(buffer[idx + 2] | (buffer[idx + 3] << 8));
+                        short r = (short)(buffer[idx + 2] | buffer[idx + 3] << 8);
                         double nr = r / 32768.0;
                         sumR += nr * nr;
                     }
@@ -78,13 +78,13 @@ namespace GoombaCast.Audio.AudioHandlers
 
                 for (int i = 0; i < frames; i++)
                 {
-                    short l = (short)(buffer[idx] | (buffer[idx + 1] << 8));
+                    short l = (short)(buffer[idx] | buffer[idx + 1] << 8);
                     int al = Math.Abs(l);
                     if (al > maxAbsL) maxAbsL = al;
 
                     if (channels > 1)
                     {
-                        short r = (short)(buffer[idx + 2] | (buffer[idx + 3] << 8));
+                        short r = (short)(buffer[idx + 2] | buffer[idx + 3] << 8);
                         int ar = Math.Abs(r);
                         if (ar > maxAbsR) maxAbsR = ar;
                     }

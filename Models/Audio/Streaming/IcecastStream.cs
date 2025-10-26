@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GoombaCast.Audio.Streaming
+namespace GoombaCast.Models.Audio.Streaming
 {
     public class IcecastStreamConfig
     {
@@ -20,7 +20,7 @@ namespace GoombaCast.Audio.Streaming
         public string Pass { get; set; } = "hackme";
         public bool UseTls { get; set; } = false;
         public string ContentType { get; set; } = "audio/mpeg";
-        public string? StreamName { get; set; } = "GoomaCast Stream";
+        public string? StreamName { get; set; } = "GoombaCast Stream";
         public string? StreamUrl { get; set; }
         public string? StreamGenre { get; set; } = "Radio";
         public bool IsPublic { get; set; } = true;
@@ -91,7 +91,7 @@ namespace GoombaCast.Audio.Streaming
             using (var reader = new StreamReader(_net, Encoding.ASCII, false, 1024, leaveOpen: true))
             {
                 var status = await reader.ReadLineAsync().ConfigureAwait(false);
-                if (status == null || (!status.Contains("200") && !status.Contains("100") && !status.Contains("OK")))
+                if (status == null || !status.Contains("200") && !status.Contains("100") && !status.Contains("OK"))
                     throw new InvalidOperationException($"Icecast PUT failed: '{status ?? "<no status>"}'");
 
                 // Consume remaining response headers until blank line

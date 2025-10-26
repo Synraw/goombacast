@@ -1,7 +1,7 @@
 ﻿using NAudio.Wave;
 using System;
 
-namespace GoombaCast.Audio.AudioHandlers
+namespace GoombaCast.Models.Audio.AudioHandlers
 {
     // Callback-style interface for buffer observation or in-place modification.
     // Called on the audio capture thread; keep work lightweight.

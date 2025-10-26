@@ -1,6 +1,8 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using GoombaCast.Audio.Streaming;
+﻿using Avalonia.Controls.ApplicationLifetimes;
+using CommunityToolkit.Mvvm.ComponentModel;
+using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 
@@ -8,14 +10,13 @@ namespace GoombaCast.ViewModels
 {
     public partial class SettingsWindowViewModel : ViewModelBase
     {
+        public event EventHandler<string>? StreamNameChanged;
+
         [ObservableProperty]
-        private ObservableCollection<InputDevice> _availableMicrophones = new();
+        private ObservableCollection<InputDevice> _availableMicrophones = [];
 
         [ObservableProperty]
         private InputDevice? _selectedMicrophone;
-
-        [ObservableProperty]
-        private int _selectedMicrophoneIndex = -1;
 
         [ObservableProperty]
         private string _serverAddress;
@@ -27,15 +28,14 @@ namespace GoombaCast.ViewModels
         private string _streamUrl;
 
         [ObservableProperty]
-        private string _username = "user";
+        private string _username;
 
-        [ObservableProperty]    
-        private string _password = "password";
+        [ObservableProperty]
+        private string _password;
 
         public SettingsWindowViewModel()
         {
             var settings = SettingsService.Default.Settings;
-
             ServerAddress = settings.ServerAddress ?? "http://your.icecast.server:8080/web.mp3";
             StreamName = settings.StreamName ?? "My Local Icecast Stream";
             StreamUrl = settings.StreamUrl ?? "http://localhost";
@@ -46,48 +46,41 @@ namespace GoombaCast.ViewModels
             AvailableMicrophones = new ObservableCollection<InputDevice>(devices);
 
             var savedId = settings.InputDeviceId;
-            var match = savedId is null ? null : devices.FirstOrDefault(d => d.Id == savedId);
+            SelectedMicrophone = savedId is null ? 
+                AvailableMicrophones.FirstOrDefault() : 
+                devices.FirstOrDefault(d => d.Id == savedId);
 
-            if (match is not null)
-                SelectedMicrophone = match;
-            else if (AvailableMicrophones.Count > 0)
-                SelectedMicrophone = AvailableMicrophones.First();
+            PropertyChanged += (s, e) => UpdateSetting(e.PropertyName!);
         }
 
-        partial void OnSelectedMicrophoneChanged(InputDevice? value)
+        private void UpdateSetting(string propertyName)
         {
-            App.Audio.ChangeInputDevice(value?.Id ?? string.Empty);
-            SettingsService.Default.Settings.InputDeviceId = value?.Id;
-            SettingsService.Default.Save();
-        }
+            var settings = SettingsService.Default.Settings;
 
-        partial void OnServerAddressChanged(string value)
-        {
-            SettingsService.Default.Settings.ServerAddress = value;
-            SettingsService.Default.Save();
-        }
-
-        partial void OnUsernameChanged(string value)
-        {
-            SettingsService.Default.Settings.UserName = value;
-            SettingsService.Default.Save();
-        }
-
-        partial void OnPasswordChanged(string value)
-        {
-            SettingsService.Default.Settings.Password = value;
-            SettingsService.Default.Save();
-        }
-
-        partial void OnStreamNameChanged(string value)
-        {
-            SettingsService.Default.Settings.StreamName = value;
-            SettingsService.Default.Save();
-        }
-
-        partial void OnStreamUrlChanging(string value)
-        {
-            SettingsService.Default.Settings.StreamUrl = value;
+            switch (propertyName)
+            {
+                case nameof(SelectedMicrophone):
+                    App.Audio.ChangeInputDevice(SelectedMicrophone?.Id ?? string.Empty);
+                    settings.InputDeviceId = SelectedMicrophone?.Id;
+                    break;
+                case nameof(ServerAddress):
+                    settings.ServerAddress = ServerAddress;
+                    break;
+                case nameof(Username):
+                    settings.UserName = Username;
+                    break;
+                case nameof(Password):
+                    settings.Password = Password;
+                    break;
+                case nameof(StreamName):
+                    settings.StreamName = StreamName;
+                    StreamNameChanged?.Invoke(this, StreamName);
+                    break;
+                case nameof(StreamUrl):
+                    settings.StreamUrl = StreamUrl;
+                    break;
+            }
+            
             SettingsService.Default.Save();
         }
     }

@@ -1,6 +1,5 @@
-﻿using System;
-using Avalonia;
-using GoombaCast.Audio.Streaming;
+﻿using Avalonia;
+using System;
 
 namespace GoombaCast
 {

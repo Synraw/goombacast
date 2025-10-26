@@ -1,8 +1,7 @@
 using NAudio.Wave;
 using System;
-using GoombaCast.Audio.AudioHandlers;
 
-namespace GoombaCast.Audio.AudioHandlers
+namespace GoombaCast.Models.Audio.AudioHandlers
 {
     // In-place gain (pre-encoder). Assumes 16-bit PCM.
     public sealed class GainAudioHandler : AudioHandler
@@ -44,14 +43,14 @@ namespace GoombaCast.Audio.AudioHandlers
             // Little-endian 16-bit samples
             for (int i = offset; i < end; i += 2)
             {
-                short s = (short)(buffer[i] | (buffer[i + 1] << 8));
+                short s = (short)(buffer[i] | buffer[i + 1] << 8);
                 int amplified = (int)Math.Round(s * _gainLinear);
 
                 if (amplified > short.MaxValue) amplified = short.MaxValue;
                 else if (amplified < short.MinValue) amplified = short.MinValue;
 
                 buffer[i] = (byte)(amplified & 0xFF);
-                buffer[i + 1] = (byte)((amplified >> 8) & 0xFF);
+                buffer[i + 1] = (byte)(amplified >> 8 & 0xFF);
             }
         }
     }
