@@ -48,8 +48,9 @@
 								  SelectedItem="{Binding SelectedMicrophone}"/>
 					</StackPanel>
 				</TabItem>
+
 				<TabItem Header="Server" FontSize="18">
-					<Grid ShowGridLines="False" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+					<Grid ShowGridLines="False" RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
 						<TextBlock Text="Server Address:" Foreground="White" VerticalAlignment="Center" Margin="10"/>
 						<TextBox Grid.Column="1" Width="250" Margin="10"
 								 Text="{Binding ServerAddress}"
@@ -63,10 +64,6 @@
 						<TextBox Grid.Row="3" Grid.Column="1" Width="250" Margin="10"
 								 Text="{Binding StreamName}"
 								 ToolTip.Tip="Enter the stream name (e.g., My Local Icecast Stream)"/>
-						<TextBlock Grid.Row="4" Text="Stream URL" Foreground="White" VerticalAlignment="Center" Margin="10"/>
-						<TextBox Grid.Row="4" Grid.Column="1" Width="250" Margin="10"
-								 Text="{Binding StreamUrl}"
-								 ToolTip.Tip="Enter the stream URL (e.g., http://example.com)"/>
 					</Grid>
 				</TabItem>
 			</TabControl>

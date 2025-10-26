@@ -24,9 +24,6 @@ namespace GoombaCast.ViewModels
         private string _streamName;
 
         [ObservableProperty]
-        private string _streamUrl;
-
-        [ObservableProperty]
         private string _username;
 
         [ObservableProperty]
@@ -37,7 +34,6 @@ namespace GoombaCast.ViewModels
             var settings = SettingsService.Default.Settings;
             ServerAddress = settings.ServerAddress ?? "http://your.icecast.server:8080/web.mp3";
             StreamName = settings.StreamName ?? "My Local Icecast Stream";
-            StreamUrl = settings.StreamUrl ?? "http://localhost";
             Username = settings.UserName ?? "user";
             Password = settings.Password ?? "password";
 
@@ -75,9 +71,6 @@ namespace GoombaCast.ViewModels
                 case nameof(StreamName):
                     settings.StreamName = StreamName;
                     StreamNameChanged?.Invoke(this, StreamName);
-                    break;
-                case nameof(StreamUrl):
-                    settings.StreamUrl = StreamUrl;
                     break;
             }
             

@@ -10,7 +10,6 @@ namespace GoombaCast.Services
         public string? InputDeviceId { get; set; }
         public string? ServerAddress { get; set; } = "http://localhost:8000/stream/web.mp3";
         public string? StreamName { get; set; }
-        public string? StreamUrl { get; set; }
         public string? UserName { get; set; }
         public string? Password { get; set; }
     }

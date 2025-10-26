@@ -39,6 +39,7 @@ namespace GoombaCast.Views
 
         private async void StreamStopStartButton_Click(object? sender, RoutedEventArgs e)
         {
+            var s = SettingsService.Default.Settings;
             var btn = StreamStopStartButton;
 
             try
@@ -51,6 +52,7 @@ namespace GoombaCast.Views
                     ViewModel?.StartTimer();
                     btn.Content = "Stop Stream";
                     btn.Background = Brushes.Red;
+                    Logging.Log($"Now streaming to {s.StreamName}");
                 }
                 else
                 {
@@ -58,11 +60,13 @@ namespace GoombaCast.Views
                     ViewModel?.StopTimer();
                     btn.Content = "Start Streaming";
                     btn.Background = Brushes.Green;
+                    Logging.Log($"{s.StreamName} stream stopped.");
                 }
             }
             catch (Exception ex)
             {
-                Logging.LogError($"Error starting/stopping stream: {ex.Message}");
+                string startOrStop = App.Audio.IsBroadcasting ? "stopping" : "starting";
+                Logging.LogError($"Error {startOrStop} stream: {ex.Message}");
             }
             finally
             {

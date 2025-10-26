@@ -61,7 +61,7 @@
 					<TextBlock Text="Stream Time" Foreground="White" Margin="5" FontSize="42" FontFamily="Cascadia Mono"
 							   VerticalAlignment="Center"/>
 					<TextBlock Grid.Row="1" Text="{Binding StreamingTime}" VerticalAlignment="Center"
-							   Foreground="White" Margin="5" FontFamily="Cascadia Mono" FontSize="42"/>
+							   Foreground="White" Margin="5,-15,5,5" FontFamily="Cascadia Mono" FontSize="42"/>
 					<TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ListenerCount}"
 							   VerticalAlignment="Bottom" HorizontalAlignment="Right"
 							   Margin="5" FontFamily="Cascadia Mono" FontSize="12"/>
@@ -115,8 +115,7 @@
 				<TextBlock Grid.Column="2" FontSize="10" Text="+24dB" TextAlignment="Right" VerticalAlignment="Center" Margin="5"/>
 			</Grid>
 
-			<TextBox Grid.Row="5" Grid.ColumnSpan="4" x:Name="LogWindow"
-					 Text="{Binding LogLines}" Margin="5" IsReadOnly="True" TextWrapping="Wrap" />
+			<TextBox x:Name="LogWindow" Grid.Row="5" Grid.ColumnSpan="4" Text="{Binding LogLines}" Margin="5" IsReadOnly="True" TextWrapping="Wrap" />
 		</Grid>
 	</Panel>
 </Window>

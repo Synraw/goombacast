@@ -22,7 +22,6 @@ namespace GoombaCast.Models.Audio.Streaming
         public bool UseTls { get; set; } = false;
         public string ContentType { get; set; } = "audio/mpeg";
         public string? StreamName { get; set; } = "GoombaCast Stream";
-        public string? StreamUrl { get; set; }
         public string? StreamGenre { get; set; } = "Radio";
         public bool IsPublic { get; set; } = true;
 
@@ -35,7 +34,6 @@ namespace GoombaCast.Models.Audio.Streaming
 
             // Optional Icecast "ice-*" headers (nice to have; not required)
             if (!string.IsNullOrWhiteSpace(StreamName)) sb.Append($"ice-name: {StreamName}\r\n");
-            if (!string.IsNullOrWhiteSpace(StreamUrl)) sb.Append($"ice-url: {StreamUrl}\r\n");
             if (!string.IsNullOrWhiteSpace(StreamGenre)) sb.Append($"ice-genre: {StreamGenre}\r\n");
 
             sb.Append($"ice-bitrate: 320\r\n");
@@ -59,7 +57,6 @@ namespace GoombaCast.Models.Audio.Streaming
                 User = settings.Settings.UserName ?? "user",
                 Pass = settings.Settings.Password ?? "pass",
                 StreamName = settings.Settings.StreamName ?? "GoombaCast Stream",
-                StreamUrl = settings.Settings.StreamUrl
             };
         }
 

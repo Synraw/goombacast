@@ -3,8 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
 using System;
-using System.Configuration;
 using System.Threading.Tasks;
+using System.Timers;
 
 namespace GoombaCast.ViewModels
 {
@@ -14,7 +14,8 @@ namespace GoombaCast.ViewModels
         private readonly AudioEngine? _audioEngine;
         private readonly ILoggingService? _loggingService;
         private DateTime _streamStartTime;
-        private System.Timers.Timer? _streamTimer;
+        private Timer? _streamTimer;
+        private Timer? _listenerTimer;
 
         [ObservableProperty]
         private string _windowTitle;
@@ -35,7 +36,7 @@ namespace GoombaCast.ViewModels
         private string _streamingTime = "00:00:00";
 
         [ObservableProperty]
-        private string _listenerCount = "Listeners: 0";
+        private string _listenerCount = "Listeners: N/A";
 
         public IAsyncRelayCommand? OpenSettingsCommand { get; }
 
@@ -83,19 +84,33 @@ namespace GoombaCast.ViewModels
 
             VolumeLevel = (int)_audioEngine.GetGainLevel();
 
-            // Subscribe to log events
             _loggingService.LogLineAdded += (_, message) =>
             {
                 WriteLineToLog(message);
             };
 
             _streamStartTime = DateTime.Now;
-            _streamTimer = new System.Timers.Timer(500); // Update every second
+            _streamTimer = new Timer(500); // Update every second
             _streamTimer.Elapsed += (s, e) =>
             {
                 var duration = DateTime.Now - _streamStartTime;
                 StreamingTime = $"{duration:hh\\:mm\\:ss}";
             };
+
+            _listenerTimer = new Timer(5000); // Update every 5 seconds
+            _listenerTimer.Elapsed += async (s, e) =>
+            {
+                if (audio.IsBroadcasting)
+                {
+                    var stats = await IcecastStats.GetStatsAsync();
+                    ListenerCount = $"Listeners: {stats.GetListenerCount()}";
+                }
+                else
+                {
+                    ListenerCount = "Listeners: N/A";
+                }
+            };
+            _listenerTimer.Start();
 
             foreach (var item in InputDevice.GetActiveInputDevices())
             {
@@ -109,6 +124,8 @@ namespace GoombaCast.ViewModels
         {
             _streamTimer?.Stop();
             _streamTimer?.Dispose();
+            _listenerTimer?.Stop();
+            _listenerTimer?.Dispose();
         }
 
         partial void OnVolumeLevelChanged(int value)

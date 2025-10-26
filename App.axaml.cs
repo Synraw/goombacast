@@ -30,6 +30,7 @@ namespace GoombaCast
 
                 // First register and create the logging service
                 services.AddSingleton<ILoggingService, LoggingService>();
+                
                 var tempProvider = services.BuildServiceProvider();
                 var loggingService = tempProvider.GetRequiredService<ILoggingService>();
                 Logging.Initialize(loggingService);
