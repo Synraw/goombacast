@@ -12,16 +12,10 @@ namespace GoombaCast.Services;
  * Add our dialog methods here.
  */
 
-public class DialogService : IDialogService
+public class DialogService(IServiceProvider serviceProvider, Window mainWindow) : IDialogService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly Window _mainWindow;
-
-    public DialogService(IServiceProvider serviceProvider, Window mainWindow)
-    {
-        _serviceProvider = serviceProvider;
-        _mainWindow = mainWindow;
-    }
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
+    private readonly Window _mainWindow = mainWindow;
 
     public async Task ShowSettingsDialogAsync()
     {

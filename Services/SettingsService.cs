@@ -8,7 +8,7 @@ namespace GoombaCast.Services
     {
         public int VolumeLevel { get; set; } = 0;
         public string? InputDeviceId { get; set; }
-        public string? ServerAddress { get; set; } = "http://localhost:8000/stream.mp3";
+        public string? ServerAddress { get; set; } = "http://localhost:8000/stream/web.mp3";
         public string? StreamName { get; set; }
         public string? StreamUrl { get; set; }
         public string? UserName { get; set; }

@@ -68,7 +68,7 @@ namespace GoombaCast.Models.Audio.Streaming
 
     public class IcecastStream : Stream
     {
-        private IcecastStreamConfig? _icecastConfig;
+        private IcecastStreamConfig _icecastConfig = null;
 
         private TcpClient? _tcp;
         private Stream? _net;
@@ -95,7 +95,6 @@ namespace GoombaCast.Models.Audio.Streaming
                 _net = ssl;
             }
 
-
             // Send headers
             var headerBytes = Encoding.ASCII.GetBytes(_icecastConfig.GetIcecastHeaders());
             await _net.WriteAsync(headerBytes, 0, headerBytes.Length, ct).ConfigureAwait(false);
@@ -109,8 +108,7 @@ namespace GoombaCast.Models.Audio.Streaming
                     throw new InvalidOperationException($"Icecast PUT failed: '{status ?? "<no status>"}'");
 
                 // Consume remaining response headers until blank line
-                string? line;
-                while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync().ConfigureAwait(false))) { /* skip */ }
+                while (!string.IsNullOrEmpty(_ = await reader.ReadLineAsync(ct).ConfigureAwait(false))) { /* skip */ }
             }
 
             _open = true;

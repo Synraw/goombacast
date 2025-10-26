@@ -60,6 +60,7 @@ namespace GoombaCast.ViewModels
             {
                 case nameof(SelectedMicrophone):
                     App.Audio.ChangeInputDevice(SelectedMicrophone?.Id ?? string.Empty);
+
                     settings.InputDeviceId = SelectedMicrophone?.Id;
                     break;
                 case nameof(ServerAddress):

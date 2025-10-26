@@ -1,4 +1,6 @@
-﻿using GoombaCast.Models.Audio.AudioHandlers;
+﻿using Avalonia.Logging;
+using GoombaCast.Models.Audio.AudioHandlers;
+using GoombaCast.Services;
 using NAudio.CoreAudioApi;
 using NAudio.Lame;
 using NAudio.Wave;
@@ -127,6 +129,8 @@ namespace GoombaCast.Models.Audio.Streaming
                 return true;
 
             inputDevice = device;
+            
+            Logging.Log($"Switching microphone to: {device}");
             
             RestartCapture();
 

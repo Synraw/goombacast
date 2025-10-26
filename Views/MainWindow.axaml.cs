@@ -28,7 +28,7 @@ namespace GoombaCast.Views
                 LogWindow.IsVisible = true;
                 var delta = _logLastOccupiedHeight ?? 0;
                 if (delta > 0)
-                    Height = Height + delta;
+                    Height += delta;
                 LogHideShowButton.Content = "Hide Log";
             }
         }

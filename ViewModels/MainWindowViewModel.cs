@@ -10,6 +10,7 @@ namespace GoombaCast.ViewModels
     {
         private readonly IDialogService? _dialogService;
         private readonly AudioEngine? _audioEngine;
+        private readonly ILoggingService? _loggingService;
 
         [ObservableProperty]
         private string _windowTitle;
@@ -40,16 +41,17 @@ namespace GoombaCast.ViewModels
         public void UpdateWindowTitle(string streamName)
             => WindowTitle = $"GoombaCast: {streamName}";
 
-        public MainWindowViewModel(AudioEngine audio, IDialogService dialogService)
+        public MainWindowViewModel(AudioEngine audio, IDialogService dialogService, ILoggingService loggingService)
         {
             _audioEngine = audio;
-            var settings = SettingsService.Default.Settings;
+            _dialogService = dialogService;
+            _loggingService = loggingService;
+
+            var s = SettingsService.Default.Settings;
 
             OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
 
-            _dialogService = dialogService;
-
-            _volumeLevel = settings.VolumeLevel;
+            _volumeLevel = s.VolumeLevel;
 
             _audioEngine.LevelsAvailable += (l, r) =>
             {
@@ -59,12 +61,18 @@ namespace GoombaCast.ViewModels
 
             VolumeLevel = (int)_audioEngine.GetGainLevel();
 
+            // Subscribe to log events
+            _loggingService.LogLineAdded += (_, message) =>
+            {
+                WriteLineToLog(message);
+            };
+
             foreach (var item in InputDevice.GetActiveInputDevices())
             {
-                WriteLineToLog($"Found input device: {item}");
+                Logging.Log($"Found input device: {item}");
             }
 
-            _windowTitle = $"GoombaCast: {settings.StreamName}";
+            _windowTitle = $"GoombaCast: {s.StreamName}";
         }
 
         partial void OnVolumeLevelChanged(int value)
