@@ -2,6 +2,7 @@ using GoombaCast.Models.Audio.AudioHandlers;
 using GoombaCast.Models.Audio.Streaming;
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GoombaCast.Services
 {
@@ -30,7 +31,14 @@ namespace GoombaCast.Services
 
             ArgumentNullException.ThrowIfNull(settings.ServerAddress, nameof(settings.ServerAddress));
 
-            Uri serverUri = new(settings.ServerAddress);
+            try
+            {
+                Uri serverUri = new(settings.ServerAddress);
+            }
+            catch (UriFormatException)
+            {
+                
+            }
 
             _icecastStream = new IcecastStream();
 
@@ -79,9 +87,30 @@ namespace GoombaCast.Services
 
         public void Stop() => _micStream.Stop();
 
+        public bool IsBroadcasting => _icecastStream.IsOpen;
+
+        public async Task StartBroadcastAsync(CancellationToken ct = default)
+        {
+            if (!_icecastStream.IsOpen)
+            {
+                _icecastStream.Configure(IcecastStreamConfig.FromSettings(SettingsService.Default));
+            }
+
+            await _icecastStream.OpenAsync(ct).ConfigureAwait(false);
+        }
+
+        public void StopBroadcast()
+        {
+            _icecastStream.Disconnect();
+        }
+
+        // Legacy sync method kept for completeness (unused by UI)
         public void StartBroadcast()
         {
-            _icecastStream.Configure(IcecastStreamConfig.FromSettings(SettingsService.Default));
+            if (!_icecastStream.IsOpen)
+            {
+                _icecastStream.Configure(IcecastStreamConfig.FromSettings(SettingsService.Default));
+            }
             _icecastStream.Connect();
         }
 
