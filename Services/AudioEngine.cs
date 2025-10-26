@@ -33,19 +33,7 @@ namespace GoombaCast.Services
 
             Uri serverUri = new(settings.ServerAddress);
 
-            _icecastStream = new IcecastStream(new IcecastStreamConfig
-            {
-                Host = serverUri.Host,
-                Port = serverUri.Port,
-                Mount = serverUri.PathAndQuery,
-                User = settings.UserName ?? "user",
-                Pass = settings.Password ?? "password",
-                UseTls = serverUri.Scheme.Equals("https", StringComparison.CurrentCultureIgnoreCase),
-                ContentType = "audio/mpeg", //TODO: Infer from context
-                StreamName = settings.StreamName ?? "My Local Icecast Stream", 
-                StreamUrl = settings.StreamUrl ?? "https://localhost",
-                StreamGenre = "Various"
-            });
+            _icecastStream = new IcecastStream(default);
 
             _levelMeter = new LevelMeterAudioHandler
             {

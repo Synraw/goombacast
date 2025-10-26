@@ -28,17 +28,17 @@ namespace GoombaCast.ViewModels
 
         public IAsyncRelayCommand? OpenSettingsCommand { get; }
 
-        public void WriteLineToLog(string message)
-            => LogLines += message + "\n";
-
-        public void UpdateStreamName(string streamName)
-            => WindowTitle = $"GoombaCast: {streamName}";
-
         public MainWindowViewModel() //Only used by Design
         {
             _volumeLevel = SettingsService.Default.Settings.VolumeLevel;
-            _windowTitle = "GoombaCast connected to: GoombaDesign";
+            _windowTitle = "GoombaCast: GoombaDesign";
         }
+
+        public void WriteLineToLog(string message)
+            => LogLines += message + "\n";
+
+        public void UpdateWindowTitle(string streamName)
+            => WindowTitle = $"GoombaCast: {streamName}";
 
         public MainWindowViewModel(AudioEngine audio, IDialogService dialogService)
         {
