@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GoombaCast.Services;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -46,21 +47,34 @@ namespace GoombaCast.Models.Audio.Streaming
             return sb.ToString();
         }
 
+        public static IcecastStreamConfig FromSettings(SettingsService settings)
+        {
+            var uri = new Uri(settings.Settings.ServerAddress ?? "http://localhost:8000/stream.mp3");
+            return new IcecastStreamConfig
+            {
+                Host = uri.Host,
+                Port = uri.Port,
+                Mount = uri.AbsolutePath,
+                UseTls = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase),
+                User = settings.Settings.UserName ?? "user",
+                Pass = settings.Settings.Password ?? "pass",
+                StreamName = settings.Settings.StreamName ?? "GoombaCast Stream",
+                StreamUrl = settings.Settings.StreamUrl
+            };
+        }
+
         private static string Base64(string s) => Convert.ToBase64String(Encoding.ASCII.GetBytes(s));
     }
 
     public class IcecastStream : Stream
     {
-        private readonly IcecastStreamConfig _icecastConfig;
+        private IcecastStreamConfig? _icecastConfig;
 
         private TcpClient? _tcp;
         private Stream? _net;
         private bool _open;
 
-        public IcecastStream(IcecastStreamConfig cfg)
-        {
-            _icecastConfig = cfg;
-        }
+        public IcecastStream() { }
 
         public async Task OpenAsync(CancellationToken ct = default)
         {
@@ -101,6 +115,10 @@ namespace GoombaCast.Models.Audio.Streaming
 
             _open = true;
         }
+
+        // TODO: Validate this is the correct thing to do for these two methods
+        public void Connect() => OpenAsync().GetAwaiter().GetResult();
+        public void Disconnect() => Dispose();
 
         public override void Write(byte[] buffer, int offset, int count)
         {
@@ -145,6 +163,13 @@ namespace GoombaCast.Models.Audio.Streaming
         }
 
         public bool IsOpen => _open;
+
+        public void Configure(IcecastStreamConfig config)
+        {
+            if (_open)
+                throw new InvalidOperationException("Cannot configure IcecastStream while it is open.");
+            _icecastConfig = config;
+        }
 
         // Stream contract
         public override bool CanRead => false;

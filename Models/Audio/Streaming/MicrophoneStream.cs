@@ -54,17 +54,18 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public InputDevice? CurrentInputDevice => inputDevice;
 
-        public void StartBroadcast()
-        {
-            _iceStream?.OpenAsync().Wait();
-        }
+        // TODO: Remove these methods once we confirm that the approach of doing this directly via the icestream instance is prefered.
+        //public void StartBroadcast()
+        //{
+        //    _iceStream?.OpenAsync().Wait();
+        //}
 
-        public async Task StartBroadcastAsync()
-        {
-            var stream = _iceStream;
-            if (stream == null) throw new InvalidOperationException("IcecastStream not initialized");
-            await stream.OpenAsync().ConfigureAwait(false);
-        }
+        //public async Task StartBroadcastAsync()
+        //{
+        //    var stream = _iceStream;
+        //    if (stream == null) throw new InvalidOperationException("IcecastStream not initialized");
+        //    await stream.OpenAsync().ConfigureAwait(false);
+        //}
 
         public void Start()
         {
