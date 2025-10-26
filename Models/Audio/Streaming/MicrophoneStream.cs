@@ -1,5 +1,4 @@
-﻿using Avalonia.Logging;
-using GoombaCast.Models.Audio.AudioHandlers;
+﻿using GoombaCast.Models.Audio.AudioHandlers;
 using GoombaCast.Services;
 using NAudio.CoreAudioApi;
 using NAudio.Lame;
@@ -7,7 +6,6 @@ using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace GoombaCast.Models.Audio.Streaming
 {
@@ -109,7 +107,6 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public void Dispose() => Stop();
 
-        // Change the input by device ID. If already running, restarts only the capture device.
         public bool SelectInputDevice(string deviceId)
         {
             if (string.IsNullOrWhiteSpace(deviceId)) return false;
@@ -119,18 +116,16 @@ namespace GoombaCast.Models.Audio.Streaming
             return SetInputDevice(match);
         }
 
-        // Change the input by InputDevice instance. If already running, restarts only the capture device.
         public bool SetInputDevice(InputDevice device)
         {
             if (device is null) return false;
 
-            // No-op if same device
             if (string.Equals(inputDevice?.Id, device.Id, StringComparison.OrdinalIgnoreCase))
                 return true;
 
             inputDevice = device;
             
-            Logging.Log($"Switching microphone to: {device}");
+            Logging.Log($"Input changed: {device}");
             
             RestartCapture();
 

@@ -68,7 +68,7 @@ namespace GoombaCast.Models.Audio.Streaming
 
     public class IcecastStream : Stream
     {
-        private IcecastStreamConfig _icecastConfig = null;
+        private IcecastStreamConfig? _icecastConfig;
 
         private TcpClient? _tcp;
         private Stream? _net;

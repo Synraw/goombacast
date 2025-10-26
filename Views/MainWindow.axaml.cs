@@ -1,12 +1,15 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using GoombaCast.Services;
+using GoombaCast.ViewModels;
 using System;
 
 namespace GoombaCast.Views
 {
     public partial class MainWindow : Window
     {
+        private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
         private double? _logLastOccupiedHeight;
 
         public MainWindow()
@@ -45,20 +48,21 @@ namespace GoombaCast.Views
                 if (!App.Audio.IsBroadcasting)
                 {
                     await App.Audio.StartBroadcastAsync().ConfigureAwait(true);
+                    ViewModel?.StartTimer();
                     btn.Content = "Stop Stream";
                     btn.Background = Brushes.Red;
                 }
                 else
                 {
                     App.Audio.StopBroadcast();
+                    ViewModel?.StopTimer();
                     btn.Content = "Start Streaming";
                     btn.Background = Brushes.Green;
                 }
             }
             catch (Exception ex)
             {
-                // Optional: surface to log or dialog. Keeping silent per requirement focus.
-                Console.WriteLine(ex.Message);
+                Logging.LogError($"Error starting/stopping stream: {ex.Message}");
             }
             finally
             {

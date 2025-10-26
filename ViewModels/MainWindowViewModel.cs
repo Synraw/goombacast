@@ -2,6 +2,8 @@
 using CommunityToolkit.Mvvm.Input;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
+using System;
+using System.Configuration;
 using System.Threading.Tasks;
 
 namespace GoombaCast.ViewModels
@@ -11,6 +13,8 @@ namespace GoombaCast.ViewModels
         private readonly IDialogService? _dialogService;
         private readonly AudioEngine? _audioEngine;
         private readonly ILoggingService? _loggingService;
+        private DateTime _streamStartTime;
+        private System.Timers.Timer? _streamTimer;
 
         [ObservableProperty]
         private string _windowTitle;
@@ -27,6 +31,12 @@ namespace GoombaCast.ViewModels
         [ObservableProperty]
         private string _logLines = string.Empty;
 
+        [ObservableProperty]
+        private string _streamingTime = "00:00:00";
+
+        [ObservableProperty]
+        private string _listenerCount = "Listeners: 0";
+
         public IAsyncRelayCommand? OpenSettingsCommand { get; }
 
         public MainWindowViewModel() //Only used by Design
@@ -40,6 +50,18 @@ namespace GoombaCast.ViewModels
 
         public void UpdateWindowTitle(string streamName)
             => WindowTitle = $"GoombaCast: {streamName}";
+
+        public void StartTimer()
+        {
+            _streamStartTime = DateTime.Now;
+            _streamTimer?.Start();
+        }
+
+        public void StopTimer()
+        {
+            _streamTimer?.Stop();
+            StreamingTime = "00:00:00";
+        }
 
         public MainWindowViewModel(AudioEngine audio, IDialogService dialogService, ILoggingService loggingService)
         {
@@ -67,12 +89,26 @@ namespace GoombaCast.ViewModels
                 WriteLineToLog(message);
             };
 
+            _streamStartTime = DateTime.Now;
+            _streamTimer = new System.Timers.Timer(500); // Update every second
+            _streamTimer.Elapsed += (s, e) =>
+            {
+                var duration = DateTime.Now - _streamStartTime;
+                StreamingTime = $"{duration:hh\\:mm\\:ss}";
+            };
+
             foreach (var item in InputDevice.GetActiveInputDevices())
             {
                 Logging.Log($"Found input device: {item}");
             }
 
             _windowTitle = $"GoombaCast: {s.StreamName}";
+        }
+
+        public void Cleanup()
+        {
+            _streamTimer?.Stop();
+            _streamTimer?.Dispose();
         }
 
         partial void OnVolumeLevelChanged(int value)

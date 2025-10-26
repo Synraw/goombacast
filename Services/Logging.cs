@@ -11,6 +11,8 @@ namespace GoombaCast.Services
             _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
         }
 
+        //TODO: consider file backing?
+
         public static void WriteLine(string message) 
             => _loggingService?.WriteLine(message);
 

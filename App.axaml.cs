@@ -27,22 +27,22 @@ namespace GoombaCast
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 var services = new ServiceCollection();
-                
+
                 // First register and create the logging service
                 services.AddSingleton<ILoggingService, LoggingService>();
                 var tempProvider = services.BuildServiceProvider();
                 var loggingService = tempProvider.GetRequiredService<ILoggingService>();
                 Logging.Initialize(loggingService);
-                
+
                 Audio = new AudioEngine(uiCtx);
-               
+
                 services.AddSingleton(Audio);
                 services.AddTransient<SettingsWindowViewModel>();
                 services.AddSingleton<IDialogService>(sp => new DialogService(sp, desktop.MainWindow ?? throw new InvalidOperationException("MainWindow not initialized")));
                 _serviceProvider = services.BuildServiceProvider();
 
                 DisableAvaloniaDataAnnotationValidation();
-                
+
                 // Create main window and set up dialog service
                 var mainWindow = new MainWindow();
                 desktop.MainWindow = mainWindow;
@@ -58,6 +58,7 @@ namespace GoombaCast
                 {
                     Audio.Dispose();
                     _serviceProvider?.Dispose();
+                    viewModel?.Cleanup();
                 };
 
                 // Start audio once UI is ready
