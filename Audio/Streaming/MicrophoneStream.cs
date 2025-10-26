@@ -45,19 +45,21 @@ namespace GoombaCast.Audio.Streaming
     {
         private WasapiCapture? _mic;
         private LameMP3FileWriter? _mp3Writer;
-        private IcecastStream _iceStream;
+        private IcecastStream? _iceStream;
         private InputDevice inputDevice;
         private volatile bool _running;
 
-        // Capture format and device switching control
         private readonly WaveFormat _waveFormat = new WaveFormat(48000, 16, 2);
         private volatile bool _deviceSwitchInProgress;
 
-        // Handler management (thread-safe snapshot pattern)
+        private readonly object _micLock = new();
+
         private readonly object _handlerLock = new();
         private AudioHandler[] _handlerSnapshot = Array.Empty<AudioHandler>();
 
-        public MicrophoneStream(IcecastStream icecastStream)
+        
+
+        public MicrophoneStream(IcecastStream? icecastStream)
         {
             _iceStream = icecastStream;
 
@@ -98,16 +100,22 @@ namespace GoombaCast.Audio.Streaming
             if (!_running) return;
             _running = false;
 
-            try { _mic?.StopRecording(); } catch { /* ignore */ }
+            lock (_micLock)
+            {
+                try { _mic?.StopRecording(); } catch { /* ignore */ }
 
-            // Notify handlers capture is stopping
-            var handlers = _handlerSnapshot;
-            foreach (var h in handlers)
-                h.OnStop();
+                // Notify handlers capture is stopping
+                var handlers = _handlerSnapshot;
+                foreach (var h in handlers)
+                    h.OnStop();
 
-            _mic?.Dispose(); _mic = null;
-            _mp3Writer?.Dispose(); _mp3Writer = null;
-            _iceStream?.Dispose(); _iceStream = null;
+                _mic?.Dispose(); 
+                _mic = null;
+                _mp3Writer?.Dispose(); 
+                _mp3Writer = null;
+                _iceStream?.Dispose(); 
+                _iceStream = null;
+            }
         }
 
         public void Dispose() => Stop();
@@ -182,48 +190,71 @@ namespace GoombaCast.Audio.Streaming
 
         private void CreateAndStartMic(bool notifyHandlers)
         {
-            _mic = new WasapiCapture(inputDevice.Device)
+            lock (_micLock)
             {
-                ShareMode = AudioClientShareMode.Shared,
-                WaveFormat = _waveFormat
-            };
+                // Ensure any existing instance is properly cleaned up
+                if (_mic != null)
+                {
+                    try { _mic.StopRecording(); } catch { /* ignore */ }
+                    _mic.Dispose();
+                    _mic = null;
+                }
 
-            if (notifyHandlers)
-            {
-                // Notify handlers capture is starting with the selected format
+                _mic = new WasapiCapture(inputDevice.Device)
+                {
+                    ShareMode = AudioClientShareMode.Shared,
+                    WaveFormat = _waveFormat
+                };
+
+                // Take snapshot of handlers before attaching events
                 var handlers = _handlerSnapshot;
-                foreach (var h in handlers)
-                    h.OnStart(_waveFormat);
+
+                if (notifyHandlers)
+                {
+                    // Notify handlers capture is starting with the selected format
+                    foreach (var h in handlers)
+                        h.OnStart(_waveFormat);
+                }
+
+                var micRef = _mic; // Capture in local for event handlers
+
+                _mic.DataAvailable += (s, a) =>
+                {
+                    // Capture snapshot once at start of callback
+                    var hs = _handlerSnapshot;
+                    
+                    // Verify mic hasn't been disposed
+                    if (micRef != _mic) return;
+
+                    for (int i = 0; i < hs.Length; i++)
+                    {
+                        var h = hs[i];
+                        if (h.Enabled)
+                            h.ProcessBuffer(a.Buffer, 0, a.BytesRecorded, micRef.WaveFormat);
+                    }
+
+                    lock (_micLock)
+                    {
+                        if (_mp3Writer != null && micRef == _mic)
+                        {
+                            _mp3Writer.Write(a.Buffer, 0, a.BytesRecorded);
+                        }
+                    }
+                };
+
+                _mic.RecordingStopped += (s, a) =>
+                {
+                    if (_deviceSwitchInProgress) return;
+                    
+                    // Ensure we're stopping the correct instance
+                    if (micRef == _mic)
+                    {
+                        Stop();
+                    }
+                };
+
+                _mic.StartRecording();
             }
-
-            _mic.DataAvailable += (s, a) =>
-            {
-                // Give handlers a chance to inspect/modify PCM before encoding
-                var hs = _handlerSnapshot; // snapshot for this callback
-                for (int i = 0; i < hs.Length; i++)
-                {
-                    var h = hs[i];
-                    if (h.Enabled)
-                        h.ProcessBuffer(a.Buffer, 0, a.BytesRecorded, _mic!.WaveFormat);
-                }
-
-                if (_mp3Writer != null)
-                {
-                    _mp3Writer.Write(a.Buffer, 0, a.BytesRecorded);
-                    //_mp3Writer.Flush(); // keeps latency down (tradeoff: more calls)
-                }
-            };
-
-            _mic.RecordingStopped += (s, a) =>
-            {
-                // If we intentionally stopped to switch devices, skip full teardown
-                if (_deviceSwitchInProgress) return;
-
-                // Ensure resources close cleanly if input stops
-                Stop();
-            };
-
-            _mic.StartRecording();
         }
 
         private void RestartCapture()
