@@ -1,10 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using System;
-using System.Collections.ObjectModel;
-using GoombaCast.Services;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using GoombaCast.Audio.Streaming;
+using GoombaCast.Services;
 
 namespace GoombaCast.ViewModels
 {
@@ -30,11 +26,16 @@ namespace GoombaCast.ViewModels
 
         public MainWindowViewModel()
         {
+            // Restore persisted volume
+            _volumeLevel = SettingsService.Default.Settings.VolumeLevel;
             _windowTitle = "GoombaCast connected to: yeah";
         }
 
         public MainWindowViewModel(AudioEngine audio)
         {
+            // Restore persisted volume
+            _volumeLevel = SettingsService.Default.Settings.VolumeLevel;
+
             // These callbacks are already marshalled to UI thread via CallbackContext
             audio.LevelsAvailable += (l, r) =>
             {
@@ -48,6 +49,17 @@ namespace GoombaCast.ViewModels
             }
 
             _windowTitle = "GoombaCast connected to: yeah";
+        }
+
+        // Persist when volume changes
+        partial void OnVolumeLevelChanged(int value)
+        {
+            var s = SettingsService.Default.Settings;
+            if (s.VolumeLevel != value)
+            {
+                s.VolumeLevel = value;
+                SettingsService.Default.Save();
+            }
         }
     }
 }

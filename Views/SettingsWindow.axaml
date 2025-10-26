@@ -15,6 +15,10 @@
 		ExtendClientAreaToDecorationsHint="True"
 		WindowStartupLocation="CenterOwner">
 
+	<Design.DataContext>
+		<vm:SettingsWindowViewModel/>
+	</Design.DataContext>
+
 	<Panel>
 		<ExperimentalAcrylicBorder IsHitTestVisible="False">
 			<ExperimentalAcrylicBorder.Material>
@@ -26,12 +30,23 @@
 			</ExperimentalAcrylicBorder.Material>
 		</ExperimentalAcrylicBorder>
 
-		<TextBlock Text="Settings" Margin="0,5,0,0" FontSize="24" Foreground="White"
+		<Image Source="/Assets/goomba-logo.ico" Width="32" Height="32" Margin="5" 
+				   IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top" />
+
+		<Grid ShowGridLines="True" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,*">
+			
+			<TextBlock Grid.ColumnSpan="4" Text="Settings" Margin="10" FontSize="18" Foreground="White"
 			 HorizontalAlignment="Center" IsHitTestVisible="False"
 			 VerticalAlignment="Top" />
 
-		<Grid>
-			
+			<StackPanel Grid.Row="1" Grid.ColumnSpan="4" Margin="10" Spacing="10" 
+						Orientation="Horizontal" HorizontalAlignment="Center">
+				<TextBlock Text="Microphone:" Foreground="White" VerticalAlignment="Center"/>
+				<ComboBox Width="250"
+						  ItemsSource="{Binding AvailableMicrophones}" 
+						  SelectedItem="{Binding SelectedMicrophone}"/>
+
+			</StackPanel>
 		</Grid>
 	</Panel>
 </Window>

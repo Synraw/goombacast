@@ -15,6 +15,9 @@ namespace GoombaCast.Services
         // Re-expose levels for view models (already marshalled to UI thread)
         public event Action<float, float>? LevelsAvailable;
 
+        public InputDevice? FindInputDevice(string deviceId)
+            => InputDevice.GetActiveInputDevices().Find(d => d.Id == deviceId);
+
         public AudioEngine(SynchronizationContext? uiContext)
         {
             _icecastStream = new IcecastStream(new IcecastStreamConfig
@@ -38,14 +41,39 @@ namespace GoombaCast.Services
                 UseRmsLevels = true,
                 LevelFloorDb = -90f
             };
+
             _levelMeter.LevelsAvailable += (l, r) => LevelsAvailable?.Invoke(l, r);
 
             _gain = new GainAudioHandler();
             _gain.GainDb = 0.0f; // Example: +3 dB gain
 
             _micStream = new MicrophoneStream(_icecastStream);
+
+            var inputDeviceId = SettingsService.Default.Settings.InputDeviceId;
+            if (inputDeviceId is not null)
+            {
+                var device = FindInputDevice(inputDeviceId);
+                if (device is not null)
+                {
+                    _micStream.SetInputDevice(device);
+                }
+            }
+
             _micStream.AddAudioHandler(_gain);
             _micStream.AddAudioHandler(_levelMeter);
+        }
+
+        public bool ChangeInputDevice(string deviceId)
+        {
+            var device = FindInputDevice(deviceId);
+            if (device is not null)
+            {
+                _micStream.SetInputDevice(device);
+                SettingsService.Default.Settings.InputDeviceId = deviceId;
+                SettingsService.Default.Save();
+                return true;
+            }
+            return false;
         }
 
         public void Start()
