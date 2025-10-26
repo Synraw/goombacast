@@ -8,7 +8,7 @@ namespace GoombaCast.ViewModels
 {
     public partial class MainWindowViewModel : ViewModelBase
     {
-        private readonly IDialogService _dialogService;
+        private readonly IDialogService? _dialogService;
 
         [ObservableProperty]
         private string _windowTitle;
@@ -25,7 +25,7 @@ namespace GoombaCast.ViewModels
         [ObservableProperty]
         private string _logLines = string.Empty;
 
-        public IAsyncRelayCommand OpenSettingsCommand { get; }
+        public IAsyncRelayCommand? OpenSettingsCommand { get; }
 
         public void WriteLineToLog(string message)
             => LogLines += message + "\n";
@@ -69,9 +69,7 @@ namespace GoombaCast.ViewModels
             }
         }
 
-        private Task OpenSettingsAsync()
-        {
-            return _dialogService.ShowSettingsDialogAsync();
-        }
+        private Task OpenSettingsAsync() => 
+            _dialogService?.ShowSettingsDialogAsync() ?? Task.CompletedTask;
     }
 }

@@ -20,16 +20,23 @@ namespace GoombaCast.Services
 
         public AudioEngine(SynchronizationContext? uiContext)
         {
+            var settings = SettingsService.Default.Settings;
+
+            if (string.IsNullOrWhiteSpace(settings.ServerAddress))
+                throw new ArgumentNullException(nameof(settings.ServerAddress), "ServerAddress cannot be null or empty.");
+
+            Uri serverUri = new(settings.ServerAddress);
+
             _icecastStream = new IcecastStream(new IcecastStreamConfig
             {
-                Host = "your.icecast.server",
-                Port = 8000,
-                Mount = "/stream.mp3",
-                User = "source",
-                Pass = "yourpassword",
-                UseTls = false,
-                ContentType = "audio/mpeg",
-                StreamName = "My GoombaCast Stream",
+                Host = serverUri.Host,
+                Port = serverUri.Port,
+                Mount = serverUri.PathAndQuery,
+                User = settings.UserName ?? "user",
+                Pass = settings.Password ?? "password",
+                UseTls = serverUri.Scheme.Equals("https", StringComparison.CurrentCultureIgnoreCase),
+                ContentType = "audio/mpeg", //TODO: Infer from context
+                StreamName = settings.StreamName ?? "My Local Icecast Stream", 
                 StreamUrl = "http://example.com",
                 StreamGenre = "Various"
             });
@@ -69,8 +76,6 @@ namespace GoombaCast.Services
             if (device is not null)
             {
                 _micStream.SetInputDevice(device);
-                SettingsService.Default.Settings.InputDeviceId = deviceId;
-                SettingsService.Default.Save();
                 return true;
             }
             return false;

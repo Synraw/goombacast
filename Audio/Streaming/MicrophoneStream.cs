@@ -11,13 +11,9 @@ using System.Threading.Tasks;
 namespace GoombaCast.Audio.Streaming
 {
     // Wrapper for MMDevice to represent input device the user can choose
-    public class InputDevice
+    public class InputDevice(MMDevice device)
     {
-        public MMDevice Device { get; }
-        public InputDevice(MMDevice device)
-        {
-            Device = device;
-        }
+        public MMDevice Device { get; } = device;
 
         // Stable identifier suitable for persistence
         public string Id => Device.ID;

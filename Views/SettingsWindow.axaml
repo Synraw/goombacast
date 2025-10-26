@@ -6,7 +6,7 @@
 		mc:Ignorable="d"
 		x:Class="GoombaCast.Views.SettingsWindow"
 		x:DataType="vm:SettingsWindowViewModel"
-		Width="450" Height="450"
+		Width="500" Height="450"
 		Icon="/Assets/goomba-logo.ico"
 		Title="GoombaCast Settings"
 		CanResize="False"
@@ -30,23 +30,46 @@
 			</ExperimentalAcrylicBorder.Material>
 		</ExperimentalAcrylicBorder>
 
-		<Image Source="/Assets/goomba-logo.ico" Width="32" Height="32" Margin="5" 
-				   IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top" />
+		<Image Source="/Assets/goomba-logo.ico" Width="32" Height="32" Margin="5"
+			   IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top" />
 
-		<Grid ShowGridLines="True" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,*">
-			
+		<Grid ShowGridLines="False" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,*">
 			<TextBlock Grid.ColumnSpan="4" Text="Settings" Margin="10" FontSize="18" Foreground="White"
-			 HorizontalAlignment="Center" IsHitTestVisible="False"
-			 VerticalAlignment="Top" />
+					   HorizontalAlignment="Center" IsHitTestVisible="False"
+					   VerticalAlignment="Top" />
 
-			<StackPanel Grid.Row="1" Grid.ColumnSpan="4" Margin="10" Spacing="10" 
-						Orientation="Horizontal" HorizontalAlignment="Center">
-				<TextBlock Text="Microphone:" Foreground="White" VerticalAlignment="Center"/>
-				<ComboBox Width="250"
-						  ItemsSource="{Binding AvailableMicrophones}" 
-						  SelectedItem="{Binding SelectedMicrophone}"/>
-
-			</StackPanel>
+			<TabControl Margin="5" Grid.Row="1" Grid.ColumnSpan="3">
+				<TabItem Header="Audio" FontSize="18" >
+					<StackPanel Grid.Row="1"  Margin="10" Spacing="10"
+								Orientation="Horizontal" HorizontalAlignment="Center">
+						<TextBlock Text="Microphone:" Foreground="White" VerticalAlignment="Center"/>
+						<ComboBox Width="250"
+								  ItemsSource="{Binding AvailableMicrophones}"
+								  SelectedItem="{Binding SelectedMicrophone}"/>
+					</StackPanel>
+				</TabItem>
+				<TabItem Header="Server" FontSize="18">
+					<Grid ShowGridLines="False" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+						<TextBlock Text="Server Address:" Foreground="White" VerticalAlignment="Center" Margin="10"/>
+						<TextBox Grid.Column="1" Width="250" Margin="10" 
+                                 Text="{Binding ServerAddress}"
+                                 ToolTip.Tip="Enter the server address (e.g., https://example.com:8080/web.mp3)"/>
+						<TextBlock Grid.Row="1" Text="Username:" Foreground="White" VerticalAlignment="Center" Margin="10"/>
+						<TextBox Grid.Row="1" Grid.Column="1" Width="250" Margin="10" Text="{Binding Username}"/>
+						<TextBlock Grid.Row="2" Text="Password:" Foreground="White" VerticalAlignment="Center" Margin="10"/>
+						<TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Password}" Width="250" Margin="10" 
+								 PasswordChar="*" />
+						<TextBlock Grid.Row="3" Text="Stream Name" Foreground="White" VerticalAlignment="Center" Margin="10"/>
+						<TextBox Grid.Row="3" Grid.Column="1" Width="250" Margin="10" 
+								 Text="{Binding StreamName}"
+								 ToolTip.Tip="Enter the stream name (e.g., My Local Icecast Stream)"/>
+						<TextBlock Grid.Row="4" Text="Stream URL" Foreground="White" VerticalAlignment="Center" Margin="10"/>
+						<TextBox Grid.Row="4" Grid.Column="1" Width="250" Margin="10" 
+								 Text="{Binding StreamUrl}"
+								 ToolTip.Tip="Enter the stream URL (e.g., http://example.com)"/>
+					</Grid>
+				</TabItem>
+			</TabControl>
 		</Grid>
 	</Panel>
 </Window>
