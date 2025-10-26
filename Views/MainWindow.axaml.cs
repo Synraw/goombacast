@@ -33,14 +33,5 @@ namespace GoombaCast.Views
                 LogHideShowButton.Content = "Hide Log";
             }
         }
-
-        private async void ButtonClickOpenSettings(object? sender, RoutedEventArgs e)
-        {
-            var dlg = new SettingsWindow
-            {
-                DataContext = new SettingsWindowViewModel()
-            };
-            await dlg.ShowDialog(this); 
-        }
     }
 }

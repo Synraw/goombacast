@@ -57,13 +57,10 @@ namespace GoombaCast.Audio.Streaming
         private readonly object _handlerLock = new();
         private AudioHandler[] _handlerSnapshot = Array.Empty<AudioHandler>();
 
-        
-
         public MicrophoneStream(IcecastStream? icecastStream)
         {
             _iceStream = icecastStream;
 
-            // Prefer default device; fall back to first active if needed
             try
             {
                 inputDevice = InputDevice.GetDefaultInputDevice();
@@ -80,28 +77,38 @@ namespace GoombaCast.Audio.Streaming
 
         public void StartBroadcast()
         {
-            _iceStream.OpenAsync().Wait();
+            _iceStream?.OpenAsync().Wait();
+        }
+
+        public async Task StartBroadcastAsync()
+        {
+            var stream = _iceStream;
+            if (stream == null) throw new InvalidOperationException("IcecastStream not initialized");
+            await stream.OpenAsync().ConfigureAwait(false);
         }
 
         public void Start()
         {
             if (_running) return;
 
-            // Prepare MP3 encoder: 48 kHz, 16-bit, stereo @ 320 kbps CBR
-            _mp3Writer = new LameMP3FileWriter(_iceStream, _waveFormat, 320);
-
-            CreateAndStartMic(notifyHandlers: true);
-
-            _running = true;
+            lock (_micLock)
+            {
+                if (_iceStream == null) throw new InvalidOperationException("IcecastStream not initialized");
+                
+                _mp3Writer = new LameMP3FileWriter(_iceStream, _waveFormat, 320);
+                CreateAndStartMic(notifyHandlers: true);
+                _running = true;
+            }
         }
 
         public void Stop()
         {
             if (!_running) return;
-            _running = false;
 
             lock (_micLock)
             {
+                _running = false;
+
                 try { _mic?.StopRecording(); } catch { /* ignore */ }
 
                 // Notify handlers capture is stopping
