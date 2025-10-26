@@ -33,7 +33,7 @@ namespace GoombaCast.Services
 
             Uri serverUri = new(settings.ServerAddress);
 
-            _icecastStream = new IcecastStream(default);
+            _icecastStream = new IcecastStream();
 
             _levelMeter = new LevelMeterAudioHandler
             {
@@ -79,12 +79,16 @@ namespace GoombaCast.Services
 
         public void Start()
         {
-            // If your IcecastStream requires explicit open, you can call:
-            // _micStream.StartBroadcast();
             _micStream.Start();
         }
 
         public void Stop() => _micStream.Stop();
+
+        public void StartBroadcast()
+        {
+            _icecastStream.Configure(IcecastStreamConfig.FromSettings(SettingsService.Default));
+            _icecastStream.Connect();
+        }
 
         public void Dispose() => _micStream.Dispose();
     }
