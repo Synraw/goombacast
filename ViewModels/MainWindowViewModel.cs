@@ -30,7 +30,7 @@ namespace GoombaCast.ViewModels
 
         public MainWindowViewModel()
         {
-            _windowTitle = "GoombaCast";
+            _windowTitle = "GoombaCast connected to: yeah";
         }
 
         public MainWindowViewModel(AudioEngine audio)

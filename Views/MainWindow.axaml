@@ -51,7 +51,7 @@
 			<Image Source="/Assets/goomba-logo.ico" Width="32" Height="32" Margin="5" 
 				   IsHitTestVisible="False" HorizontalAlignment="Left" />
 
-			<TextBlock FontSize="16" Grid.ColumnSpan="5" IsHitTestVisible="False" TextAlignment="Center" Margin="5">
+			<TextBlock FontSize="16" Grid.ColumnSpan="5" IsHitTestVisible="False" TextAlignment="Center" Margin="10">
 				<Run Text="{Binding WindowTitle}"/>
 			</TextBlock>
 
@@ -100,7 +100,7 @@
 			<Grid ShowGridLines="False" Grid.Row="4" Grid.ColumnSpan="4" ColumnSpacing="5"
 				RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" >
 				<TextBlock Grid.Column="0" FontSize="10" Text="-24dB" TextAlignment="Left" VerticalAlignment="Center" Margin="5"/>
-				<Slider Grid.Column="1" Value="{Binding VolumeLevel}" DockPanel.Dock="Top" />
+				<Slider Grid.Column="1" Minimum="-24" Maximum="24" Value="{Binding VolumeLevel}" DockPanel.Dock="Top" />
 				<TextBlock Grid.Column="2" FontSize="10" Text="+24dB" TextAlignment="Right" VerticalAlignment="Center" Margin="5"/>
 			</Grid>
 
