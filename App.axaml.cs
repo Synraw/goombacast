@@ -59,7 +59,6 @@ namespace GoombaCast
                 {
                     Audio.Dispose();
                     _serviceProvider?.Dispose();
-                    viewModel?.Cleanup();
                 };
 
                 // Start audio once UI is ready

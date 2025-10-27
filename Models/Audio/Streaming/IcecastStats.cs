@@ -10,7 +10,7 @@ namespace GoombaCast.Models.Audio.Streaming
 {
     public class IcecastStats
     {
-        private static IcecastStats FromJson(string json)
+        private static IcecastStats? FromJson(string json)
         {
             var options = new JsonSerializerOptions
             {
@@ -20,10 +20,10 @@ namespace GoombaCast.Models.Audio.Streaming
             return statsWrapper;
         }
 
-        public static async Task<IcecastStats> GetStatsAsync()
+        public static async Task<IcecastStats?> GetStatsAsync()
         {
             var s = SettingsService.Default.Settings;
-            Uri uri = new(s.ServerAddress);
+            Uri uri = new(s.ServerAddress??"localhost");
             UriBuilder builder = new("http", uri.Host, 8000, "/status-json.xsl");
             using var httpClient = new HttpClient();
             var response = await httpClient.GetAsync(builder.Uri);
@@ -36,7 +36,7 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public int GetListenerCount()
         {
-            if (icestats?.source != null && icestats.source.Count > 0)
+            if (icestats.source != null && icestats.source.Count > 0)
             {
                 return icestats.source.Sum(s => s.listeners);
             }
