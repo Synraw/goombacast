@@ -133,7 +133,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 var stats = await IcecastStats.GetStatsAsync()
                     .WaitAsync(_cts.Token)
                     .ConfigureAwait(false);
-                
+
                 ListenerCount = $"Listeners: {stats?.GetListenerCount()}";
             }
             else

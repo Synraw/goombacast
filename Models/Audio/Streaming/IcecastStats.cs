@@ -4,46 +4,79 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace GoombaCast.Models.Audio.Streaming
 {
+    /// <summary>
+    /// Represents statistics from an Icecast streaming server.
+    /// </summary>
     public class IcecastStats
     {
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        private static readonly HttpClient _httpClient = new();
+
+        [JsonPropertyName("icestats")]
+        public Icestats? Stats { get; set; }
+
         private static IcecastStats? FromJson(string json)
         {
-            var options = new JsonSerializerOptions
+            try
             {
-                PropertyNameCaseInsensitive = true
-            };
-            var statsWrapper = JsonSerializer.Deserialize<IcecastStats>(json, options);
-            return statsWrapper;
+                return JsonSerializer.Deserialize<IcecastStats>(json, _jsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                Logging.LogError($"Failed to parse Icecast stats: {ex.Message}");
+                return null;
+            }
         }
 
         public static async Task<IcecastStats?> GetStatsAsync()
         {
-            var s = SettingsService.Default.Settings;
-            Uri uri = new(s.ServerAddress??"localhost");
-            UriBuilder builder = new("http", uri.Host, 8000, "/status-json.xsl");
-            using var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync(builder.Uri);
-            response.EnsureSuccessStatusCode();
+            var settings = SettingsService.Default.Settings;
+            if (string.IsNullOrEmpty(settings.ServerAddress))
+            {
+                Logging.LogError("Server address is not configured");
+                return null;
+            }
 
-            var json = await response.Content.ReadAsStringAsync();
-            var stats = IcecastStats.FromJson(json);
-            return stats;
+            try
+            {
+                Uri uri = new(settings.ServerAddress);
+                UriBuilder builder = new("http", uri.Host, 8000, "/status-json.xsl");
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, builder.Uri);
+                var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return FromJson(json);
+            }
+            catch (HttpRequestException ex)
+            {
+                Logging.LogError($"Failed to fetch Icecast stats: {ex.Message}");
+                return null;
+            }
+            catch (UriFormatException ex)
+            {
+                Logging.LogError($"Invalid server address: {ex.Message}");
+                return null;
+            }
         }
 
         public int GetListenerCount()
         {
-            if (icestats?.source != null && icestats.source.Count > 0)
-            {
-                return icestats.source.Sum(s => s.listeners);
-            }
-            return 0;
-        }
+            if (Stats?.source is null)
+                return 0;
 
-        public Icestats? icestats { get; set; }
+            return Stats.source.Sum(s => s.listeners);
+        }
 
         public class Icestats
         {
@@ -82,7 +115,6 @@ namespace GoombaCast.Models.Audio.Streaming
             public string? title { get; set; }
             public int total_mbytes_sent { get; set; }
             public string? yp_currently_playing { get; set; }
-            public object? dummy { get; set; }
         }
     }
 }
