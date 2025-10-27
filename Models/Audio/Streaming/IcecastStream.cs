@@ -77,6 +77,9 @@ namespace GoombaCast.Models.Audio.Streaming
         {
             if (_open) return;
 
+            if (_icecastConfig == null)
+                throw new InvalidOperationException("IcecastStreamConfig must be configured before opening the stream.");
+
             _tcp = new TcpClient();
             await _tcp.ConnectAsync(_icecastConfig.Host, _icecastConfig.Port, ct).ConfigureAwait(false);
             _net = _tcp.GetStream();

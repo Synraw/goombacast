@@ -75,9 +75,12 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         VolumeLevel = (int)App.Audio.GetGainLevel();
     }
 
-    private void InitializeLogging()
+    private void InitializeLogging() 
     {
-        _loggingService.LogLineAdded += OnLogLineAdded;
+        if (_loggingService != null)
+        {
+            _loggingService.LogLineAdded += OnLogLineAdded;
+        }
     }
 
     private void InitializeTimers()
