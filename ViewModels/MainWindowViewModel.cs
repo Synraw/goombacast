@@ -8,214 +8,204 @@ using System.Threading.Tasks;
 using System.Timers;
 using Timer = System.Timers.Timer;
 
-namespace GoombaCast.ViewModels;
-
-public partial class MainWindowViewModel : ViewModelBase, IDisposable
+namespace GoombaCast.ViewModels
 {
-    private readonly IDialogService? _dialogService;
-    private readonly AudioEngine? _audioEngine;
-    private readonly ILoggingService? _loggingService;
-    private readonly CancellationTokenSource _cts = new();
-    private DateTime _streamStartTime;
-    private Timer? _streamTimer;
-    private Timer? _listenerTimer;
-    private bool _disposed;
 
-    [ObservableProperty]
-    private string _windowTitle = string.Empty;
-
-    [ObservableProperty]
-    private int _volumeLevel;
-
-    [ObservableProperty]
-    private float _leftDb;
-
-    [ObservableProperty]
-    private float _rightDb;
-
-    [ObservableProperty]
-    private string _logLines = string.Empty;
-
-    [ObservableProperty]
-    private string _streamingTime = "00:00:00";
-
-    [ObservableProperty]
-    private string _listenerCount = "Listeners: N/A";
-
-    public IAsyncRelayCommand? OpenSettingsCommand { get; }
-
-    // Design time constructor
-    public MainWindowViewModel() { 
-    }
-
-    public MainWindowViewModel(
-        AudioEngine audioEngine,
-        IDialogService dialogService,
-        ILoggingService loggingService)
+    public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
-        _audioEngine = audioEngine ?? throw new ArgumentNullException(nameof(audioEngine));
-        _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
-        _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
+        private readonly IDialogService? _dialogService;
+        private readonly AudioEngine? _audioEngine;
+        private readonly ILoggingService? _loggingService;
+        private readonly CancellationTokenSource _cts = new();
+        private DateTime _streamStartTime;
+        private Timer? _streamTimer;
+        private Timer? _iceStatsRefresh;
+        private bool _disposed;
 
-        var settings = SettingsService.Default.Settings;
-        _volumeLevel = settings.VolumeLevel;
-        _windowTitle = $"GoombaCast: {settings.StreamName}";
+        [ObservableProperty]
+        private string _windowTitle = "GoombaCast (Design Time)";
 
-        OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
+        [ObservableProperty]
+        private int _volumeLevel;
 
-        InitializeAudioHandlers();
-        InitializeLogging();
-        InitializeTimers();
-        ScanInputDevices();
-    }
+        [ObservableProperty]
+        private float _leftDb;
 
-    private void InitializeAudioHandlers()
-    {
-        App.Audio.LevelsAvailable += OnLevelsAvailable;
-        VolumeLevel = (int)App.Audio.GetGainLevel();
-    }
+        [ObservableProperty]
+        private float _rightDb;
 
-    private void InitializeLogging() 
-    {
-        if (_loggingService != null)
+        [ObservableProperty]
+        private string _logLines = string.Empty;
+
+        [ObservableProperty]
+        private string _streamingTime = "00:00:00";
+
+        [ObservableProperty]
+        private string _listenerCount = "Listeners: N/A";
+
+        public IAsyncRelayCommand? OpenSettingsCommand { get; }
+
+        // Design time constructor
+        public MainWindowViewModel()
         {
-            _loggingService.LogLineAdded += OnLogLineAdded;
+
         }
-    }
 
-    private void InitializeTimers()
-    {
-        _streamTimer = new Timer(500)
+        public MainWindowViewModel(
+            AudioEngine audioEngine,
+            IDialogService dialogService,
+            ILoggingService loggingService)
         {
-            AutoReset = true
-        };
-        _streamTimer.Elapsed += OnStreamTimerElapsed;
+            _audioEngine = audioEngine ?? throw new ArgumentNullException(nameof(audioEngine));
+            _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+            _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
 
-        _listenerTimer = new Timer(5000)
-        {
-            AutoReset = true
-        };
-        _listenerTimer.Elapsed += OnListenerTimerElapsed;
-        _listenerTimer.Start();
-    }
+            var settings = SettingsService.Default.Settings;
+            _volumeLevel = settings.VolumeLevel;
+            _windowTitle = $"GoombaCast: {settings.StreamName}";
 
-    private void ScanInputDevices()
-    {
-        foreach (var device in InputDevice.GetActiveInputDevices())
-        {
-            Logging.Log($"Found input device: {device}");
+            OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
+
+            InitializeAudioHandlers();
+            InitializeLogging();
+            InitializeTimers();
+            ScanInputDevices();
         }
-    }
 
-    private void OnLevelsAvailable(float left, float right)
-    {
-        LeftDb = left;
-        RightDb = right;
-    }
-
-    private void OnLogLineAdded(object? sender, string message)
-    {
-        WriteLineToLog(message);
-    }
-
-    private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e)
-    {
-        var duration = DateTime.Now - _streamStartTime;
-        StreamingTime = $"{duration:hh\\:mm\\:ss}";
-    }
-
-    private async void OnListenerTimerElapsed(object? sender, ElapsedEventArgs e)
-    {
-        try
+        private void InitializeAudioHandlers()
         {
+            App.Audio.LevelsAvailable += OnLevelsAvailable;
+            VolumeLevel = (int)App.Audio.GetGainLevel();
+        }
+
+        private void InitializeLogging()
+        {
+            if (_loggingService != null)
+            {
+                _loggingService.LogLineAdded += OnLogLineAdded;
+            }
+        }
+
+        private void InitializeTimers()
+        {
+            _streamTimer = new Timer(500)
+            {
+                AutoReset = true
+            };
+            _streamTimer.Elapsed += OnStreamTimerElapsed;
+
+            _iceStatsRefresh = new Timer(500)
+            {
+                AutoReset = true
+            };
+            _iceStatsRefresh.Elapsed += OnIceStatsRefreshElapsed;
+            _iceStatsRefresh.Start();
+        }
+
+        private void ScanInputDevices()
+        {
+            foreach (var device in InputDevice.GetActiveInputDevices())
+            {
+                Logging.Log($"Found input device: {device}");
+            }
+        }
+
+        private void OnLevelsAvailable(float left, float right)
+        {
+            LeftDb = left;
+            RightDb = right;
+        }
+
+        private void OnLogLineAdded(object? sender, string message)
+        {
+            WriteLineToLog(message);
+        }
+
+        private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e)
+        {
+            var duration = DateTime.Now - _streamStartTime;
+            StreamingTime = $"{duration:hh\\:mm\\:ss}";
+        }
+
+        private async void OnIceStatsRefreshElapsed(object? sender, ElapsedEventArgs e)
+        {
+            var icestats = await IcecastStats.GetStatsAsync().ConfigureAwait(false);
+
             if (App.Audio.IsBroadcasting)
             {
-                var stats = await IcecastStats.GetStatsAsync()
-                    .WaitAsync(_cts.Token)
-                    .ConfigureAwait(false);
-
-                ListenerCount = $"Listeners: {stats?.GetListenerCount()}";
+                ListenerCount = $"Listeners: {icestats?.GetListenerCount()}";
             }
-            else
+        }
+
+        public void WriteLineToLog(string message)
+        {
+            if (string.IsNullOrEmpty(message)) return;
+            LogLines += $"{message}\n";
+        }
+
+        public void UpdateWindowTitle(string streamName)
+        {
+            WindowTitle = string.IsNullOrEmpty(streamName)
+                ? "GoombaCast"
+                : $"GoombaCast: {streamName}";
+        }
+
+        public void StartTimer()
+        {
+            _streamStartTime = DateTime.Now;
+            _streamTimer?.Start();
+        }
+
+        public void StopTimer()
+        {
+            _streamTimer?.Stop();
+            StreamingTime = "00:00:00";
+        }
+
+        partial void OnVolumeLevelChanged(int value)
+        {
+            var settings = SettingsService.Default.Settings;
+            if (settings.VolumeLevel != value)
             {
-                ListenerCount = "Listeners: N/A";
+                settings.VolumeLevel = value;
+                SettingsService.Default.Save();
             }
+            _audioEngine?.SetGainLevel(value);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+
+        private async Task OpenSettingsAsync()
         {
-            Logging.Log($"Failed to update listener count: {ex.Message}");
-            ListenerCount = "Listeners: Error";
+            if (_dialogService is null) return;
+            await _dialogService.ShowSettingsDialogAsync()
+                .ConfigureAwait(false);
         }
-    }
 
-    public void WriteLineToLog(string message)
-    {
-        if (string.IsNullOrEmpty(message)) return;
-        LogLines += $"{message}\n";
-    }
-
-    public void UpdateWindowTitle(string streamName)
-    {
-        WindowTitle = string.IsNullOrEmpty(streamName) 
-            ? "GoombaCast" 
-            : $"GoombaCast: {streamName}";
-    }
-
-    public void StartTimer()
-    {
-        _streamStartTime = DateTime.Now;
-        _streamTimer?.Start();
-    }
-
-    public void StopTimer()
-    {
-        _streamTimer?.Stop();
-        StreamingTime = "00:00:00";
-    }
-
-    partial void OnVolumeLevelChanged(int value)
-    {
-        var settings = SettingsService.Default.Settings;
-        if (settings.VolumeLevel != value)
+        protected virtual void Dispose(bool disposing)
         {
-            settings.VolumeLevel = value;
-            SettingsService.Default.Save();
-        }
-        _audioEngine?.SetGainLevel(value);
-    }
-
-    private async Task OpenSettingsAsync()
-    {
-        if (_dialogService is null) return;
-        await _dialogService.ShowSettingsDialogAsync()
-            .ConfigureAwait(false);
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-        if (!_disposed)
-        {
-            if (disposing)
+            if (!_disposed)
             {
-                _cts.Cancel();
-                _streamTimer?.Dispose();
-                _listenerTimer?.Dispose();
-                _cts.Dispose();
+                if (disposing)
+                {
+                    _cts.Cancel();
+                    _streamTimer?.Dispose();
+                    _iceStatsRefresh?.Dispose();
+                    _cts.Dispose();
 
-                // Unsubscribe from events
-                if (_audioEngine != null)
-                    _audioEngine.LevelsAvailable -= OnLevelsAvailable;
-                
-                if (_loggingService != null)
-                    _loggingService.LogLineAdded -= OnLogLineAdded;
+                    // Unsubscribe from events
+                    if (_audioEngine != null)
+                        _audioEngine.LevelsAvailable -= OnLevelsAvailable;
+
+                    if (_loggingService != null)
+                        _loggingService.LogLineAdded -= OnLogLineAdded;
+                }
+                _disposed = true;
             }
-            _disposed = true;
         }
-    }
 
-    public void Dispose()
-    {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
     }
 }

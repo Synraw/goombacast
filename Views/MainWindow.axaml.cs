@@ -52,6 +52,7 @@ namespace GoombaCast.Views
                     ViewModel?.StartTimer();
                     btn.Content = "Stop Stream";
                     btn.Background = Brushes.Red;
+                    ListenerCountText.IsVisible = true;
                     Logging.Log($"Now streaming to {s.StreamName}");
                 }
                 else
@@ -60,6 +61,7 @@ namespace GoombaCast.Views
                     ViewModel?.StopTimer();
                     btn.Content = "Start Streaming";
                     btn.Background = Brushes.Green;
+                    ListenerCountText.IsVisible = false;
                     Logging.Log($"{s.StreamName} stream stopped.");
                 }
             }
