@@ -14,7 +14,18 @@ namespace GoombaCast.Models.Audio.AudioHandlers
         public float LevelFloorDb { get; set; } = -90f;
         
         // Threshold for detecting clipping (e.g., 0.95 = 95% of max amplitude)
-        public float ClippingThreshold { get; set; } = 0.95f;
+        private float _clippingThreshold = 0.95f;
+        private int _clippingThresholdValue = (int)(32768 * 0.95f);
+        
+        public float ClippingThreshold
+        {
+            get => _clippingThreshold;
+            set
+            {
+                _clippingThreshold = value;
+                _clippingThresholdValue = (int)(32768 * value);
+            }
+        }
 
         // If set (e.g., to SynchronizationContext.Current on the UI thread), events are marshalled there.
         public SynchronizationContext? CallbackContext { get; set; }
@@ -48,7 +59,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
 
             float leftDb, rightDb;
             bool isClipping = false;
-            int clippingThresholdValue = (int)(32768 * ClippingThreshold);
 
             if (UseRmsLevels)
             {
@@ -62,7 +72,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     sumL += nl * nl;
                     
                     // Check for clipping
-                    if (Math.Abs(l) >= clippingThresholdValue)
+                    if (Math.Abs(l) >= _clippingThresholdValue)
                         isClipping = true;
 
                     if (channels > 1)
@@ -72,7 +82,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                         sumR += nr * nr;
                         
                         // Check for clipping
-                        if (Math.Abs(r) >= clippingThresholdValue)
+                        if (Math.Abs(r) >= _clippingThresholdValue)
                             isClipping = true;
                     }
 
@@ -97,7 +107,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     if (al > maxAbsL) maxAbsL = al;
                     
                     // Check for clipping
-                    if (al >= clippingThresholdValue)
+                    if (al >= _clippingThresholdValue)
                         isClipping = true;
 
                     if (channels > 1)
@@ -107,7 +117,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                         if (ar > maxAbsR) maxAbsR = ar;
                         
                         // Check for clipping
-                        if (ar >= clippingThresholdValue)
+                        if (ar >= _clippingThresholdValue)
                             isClipping = true;
                     }
 

@@ -200,11 +200,8 @@ namespace GoombaCast.ViewModels
                     _cts.Dispose();
 
                     // Unsubscribe from events
-                    if (_audioEngine != null)
-                    {
-                        _audioEngine.LevelsAvailable -= OnLevelsAvailable;
-                        _audioEngine.ClippingDetected -= OnClippingDetected;
-                    }
+                    App.Audio.LevelsAvailable -= OnLevelsAvailable;
+                    App.Audio.ClippingDetected -= OnClippingDetected;
 
                     if (_loggingService != null)
                         _loggingService.LogLineAdded -= OnLogLineAdded;
