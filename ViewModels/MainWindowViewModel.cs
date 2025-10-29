@@ -32,6 +32,9 @@ namespace GoombaCast.ViewModels
 
         [ObservableProperty]
         private float _rightDb;
+        
+        [ObservableProperty]
+        private bool _isClipping;
 
         [ObservableProperty]
         private string _logLines = string.Empty;
@@ -74,6 +77,7 @@ namespace GoombaCast.ViewModels
         private void InitializeAudioHandlers()
         {
             App.Audio.LevelsAvailable += OnLevelsAvailable;
+            App.Audio.ClippingDetected += OnClippingDetected;
             VolumeLevel = (int)App.Audio.GetGainLevel();
         }
 
@@ -113,6 +117,11 @@ namespace GoombaCast.ViewModels
         {
             LeftDb = left;
             RightDb = right;
+        }
+        
+        private void OnClippingDetected(bool isClipping)
+        {
+            IsClipping = isClipping;
         }
 
         private void OnLogLineAdded(object? sender, string message)
@@ -191,8 +200,8 @@ namespace GoombaCast.ViewModels
                     _cts.Dispose();
 
                     // Unsubscribe from events
-                    if (_audioEngine != null)
-                        _audioEngine.LevelsAvailable -= OnLevelsAvailable;
+                    App.Audio.LevelsAvailable -= OnLevelsAvailable;
+                    App.Audio.ClippingDetected -= OnClippingDetected;
 
                     if (_loggingService != null)
                         _loggingService.LogLineAdded -= OnLogLineAdded;

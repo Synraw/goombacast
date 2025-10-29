@@ -119,6 +119,15 @@
 							   Text="{Binding ListenerCount}"
 							   VerticalAlignment="Bottom"
 							   HorizontalAlignment="Center"/>
+				<TextBlock IsVisible="{Binding IsClipping}"
+						   Margin="16,0,5,5"
+						   FontSize="16"
+						   FontWeight="Bold"
+						   Foreground="Red"
+						   FontFamily="Cascadia Mono"
+						   Text="CLIPPING"
+						   VerticalAlignment="Bottom"
+						   HorizontalAlignment="Left" />
 			</Panel>
 
 			<!-- Stream Control Button -->

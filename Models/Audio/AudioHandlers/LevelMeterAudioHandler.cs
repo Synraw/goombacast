@@ -12,11 +12,26 @@ namespace GoombaCast.Models.Audio.AudioHandlers
 
         public bool UseRmsLevels { get; set; } = true;
         public float LevelFloorDb { get; set; } = -90f;
+        
+        // Threshold for detecting clipping (e.g., 0.95 = 95% of max amplitude)
+        private float _clippingThreshold = 0.95f;
+        private int _clippingThresholdValue = (int)(32768 * 0.95f);
+        
+        public float ClippingThreshold
+        {
+            get => _clippingThreshold;
+            set
+            {
+                _clippingThreshold = value;
+                _clippingThresholdValue = (int)(32768 * value);
+            }
+        }
 
         // If set (e.g., to SynchronizationContext.Current on the UI thread), events are marshalled there.
         public SynchronizationContext? CallbackContext { get; set; }
 
         public event Action<float, float>? LevelsAvailable;
+        public event Action<bool>? ClippingDetected;
 
         private WaveFormat? _fmt;
 
@@ -43,6 +58,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
             if (frames <= 0) return;
 
             float leftDb, rightDb;
+            bool isClipping = false;
 
             if (UseRmsLevels)
             {
@@ -54,12 +70,20 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     short l = (short)(buffer[idx] | buffer[idx + 1] << 8);
                     double nl = l / 32768.0;
                     sumL += nl * nl;
+                    
+                    // Check for clipping
+                    if (l >= _clippingThresholdValue || l <= -_clippingThresholdValue)
+                        isClipping = true;
 
                     if (channels > 1)
                     {
                         short r = (short)(buffer[idx + 2] | buffer[idx + 3] << 8);
                         double nr = r / 32768.0;
                         sumR += nr * nr;
+
+                        // Check for clipping
+                        if (r >= _clippingThresholdValue || r <= -_clippingThresholdValue)
+                            isClipping = true;
                     }
 
                     idx += frameSize;
@@ -81,12 +105,20 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     short l = (short)(buffer[idx] | buffer[idx + 1] << 8);
                     int al = Math.Abs(l);
                     if (al > maxAbsL) maxAbsL = al;
+                    
+                    // Check for clipping
+                    if (al >= _clippingThresholdValue)
+                        isClipping = true;
 
                     if (channels > 1)
                     {
                         short r = (short)(buffer[idx + 2] | buffer[idx + 3] << 8);
                         int ar = Math.Abs(r);
                         if (ar > maxAbsR) maxAbsR = ar;
+                        
+                        // Check for clipping
+                        if (ar >= _clippingThresholdValue)
+                            isClipping = true;
                     }
 
                     idx += frameSize;
@@ -107,6 +139,16 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     ctx.Post(_ => handler(leftDb, rightDb), null);
                 else
                     handler(leftDb, rightDb);
+            }
+            
+            var clippingHandler = ClippingDetected;
+            if (clippingHandler != null)
+            {
+                var ctx = CallbackContext;
+                if (ctx != null)
+                    ctx.Post(_ => clippingHandler(isClipping), null);
+                else
+                    clippingHandler(isClipping);
             }
         }
 
