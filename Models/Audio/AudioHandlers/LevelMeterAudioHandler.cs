@@ -72,7 +72,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     sumL += nl * nl;
                     
                     // Check for clipping
-                    if (Math.Abs(l) >= _clippingThresholdValue)
+                    if (l >= _clippingThresholdValue || l <= -_clippingThresholdValue)
                         isClipping = true;
 
                     if (channels > 1)
@@ -80,9 +80,9 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                         short r = (short)(buffer[idx + 2] | buffer[idx + 3] << 8);
                         double nr = r / 32768.0;
                         sumR += nr * nr;
-                        
+
                         // Check for clipping
-                        if (Math.Abs(r) >= _clippingThresholdValue)
+                        if (r >= _clippingThresholdValue || r <= -_clippingThresholdValue)
                             isClipping = true;
                     }
 
