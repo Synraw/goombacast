@@ -21,6 +21,9 @@ namespace GoombaCast.Services
 
         // Re-expose levels for view models (already marshalled to UI thread)
         public event Action<float, float>? LevelsAvailable;
+        
+        // Re-expose clipping detection for view models (already marshalled to UI thread)
+        public event Action<bool>? ClippingDetected;
 
         public static InputDevice? FindInputDevice(string deviceId)
             => InputDevice.GetActiveInputDevices().Find(d => d.Id == deviceId);
@@ -52,6 +55,8 @@ namespace GoombaCast.Services
             };
 
             _levelMeter.LevelsAvailable += (l, r) => LevelsAvailable?.Invoke(l, r);
+
+            _levelMeter.ClippingDetected += (isClipping) => ClippingDetected?.Invoke(isClipping);
 
             _gain = new GainAudioHandler
             {
