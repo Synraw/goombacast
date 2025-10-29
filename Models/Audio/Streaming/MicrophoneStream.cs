@@ -122,13 +122,13 @@ namespace GoombaCast.Models.Audio.Streaming
         // Add/remove handlers. Safe to call before or during capture.
         public void AddAudioHandler(AudioHandler handler)
         {
-            if (handler is null) throw new ArgumentNullException(nameof(handler));
-            AudioHandler[] newSnapshot;
+            ArgumentNullException.ThrowIfNull(handler);
+
             lock (_handlerLock)
             {
                 var list = _handlerSnapshot.ToList();
                 list.Add(handler);
-                newSnapshot = list.OrderBy(h => h.Order).ToArray();
+                var newSnapshot = list.OrderBy(h => h.Order).ToArray();
                 _handlerSnapshot = newSnapshot;
             }
 
