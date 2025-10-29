@@ -10,7 +10,6 @@ using Timer = System.Timers.Timer;
 
 namespace GoombaCast.ViewModels
 {
-
     public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         private readonly IDialogService? _dialogService;

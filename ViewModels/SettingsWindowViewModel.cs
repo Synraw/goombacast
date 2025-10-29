@@ -32,7 +32,7 @@ namespace GoombaCast.ViewModels
         public SettingsWindowViewModel()
         {
             var settings = SettingsService.Default.Settings;
-            ServerAddress = settings.ServerAddress ?? "http://your.icecast.server:8080/web.mp3";
+            ServerAddress = settings.ServerAddress ?? "http://localhost:8080/";
             StreamName = settings.StreamName ?? "My Local Icecast Stream";
             Username = settings.UserName ?? "user";
             Password = settings.Password ?? "password";

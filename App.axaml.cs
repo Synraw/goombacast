@@ -9,75 +9,155 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GoombaCast
 {
-    public partial class App : Application
+    public partial class App : Application, IAsyncDisposable
     {
-        public static AudioEngine Audio { get; private set; } = null!;
         private ServiceProvider? _serviceProvider;
+        private static AudioEngine? _audio;
+        
+        public static AudioEngine Audio => _audio ?? 
+            throw new InvalidOperationException("AudioEngine not initialized");
 
-        public override void Initialize() => AvaloniaXamlLoader.Load(this);
+        public override void Initialize() 
+            => AvaloniaXamlLoader.Load(this);
 
         public override void OnFrameworkInitializationCompleted()
         {
-            // Capture UI SynchronizationContext for safe UI updates
-            var uiCtx = SynchronizationContext.Current;
-
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
             {
-                var services = new ServiceCollection();
+                return;
+            }
 
-                // First register and create the logging service
-                services.AddSingleton<ILoggingService, LoggingService>();
-                
-                var tempProvider = services.BuildServiceProvider();
-                var loggingService = tempProvider.GetRequiredService<ILoggingService>();
-                Logging.Initialize(loggingService);
-
-                Audio = new AudioEngine(uiCtx);
-
-                services.AddSingleton(Audio);
-                services.AddTransient<SettingsWindowViewModel>();
-                services.AddSingleton<IDialogService>(sp => new DialogService(sp, desktop.MainWindow ?? throw new InvalidOperationException("MainWindow not initialized")));
-                _serviceProvider = services.BuildServiceProvider();
-
-                DisableAvaloniaDataAnnotationValidation();
-
-                // Create main window and set up dialog service
-                var mainWindow = new MainWindow();
-                desktop.MainWindow = mainWindow;
-
-                // Create dialog service with main window reference
-                var dialogService = new DialogService(_serviceProvider, mainWindow);
-
-                // Create view model with all required dependencies
-                var viewModel = new MainWindowViewModel(Audio, dialogService, loggingService);
-                mainWindow.DataContext = viewModel;
-
-                desktop.Exit += (_, __) =>
-                {
-                    Audio.Dispose();
-                    _serviceProvider?.Dispose();
-                };
-
-                // Start audio once UI is ready
-                Audio.Start();
+            try
+            {
+                ConfigureServices(desktop);
+                ConfigureMainWindow(desktop);
+                StartAudioEngine();
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Application initialization failed: {ex}");
+                throw;
             }
 
             base.OnFrameworkInitializationCompleted();
         }
 
-        private void DisableAvaloniaDataAnnotationValidation()
+        private void ConfigureServices(IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Get an array of plugins to remove
-            var dataValidationPluginsToRemove =
-                BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
+            var services = new ServiceCollection();
 
-            // remove each entry found
+            // Register services
+            services.AddSingleton<ILoggingService, LoggingService>();
+            services.AddSingleton<AudioEngine>(sp => 
+            {
+                var uiCtx = SynchronizationContext.Current ?? 
+                    throw new InvalidOperationException("UI SynchronizationContext not available");
+                return new AudioEngine(uiCtx);
+            });
+            services.AddTransient<MainWindowViewModel>();
+            services.AddTransient<SettingsWindowViewModel>();
+            services.AddSingleton<IDialogService>(sp =>
+            {
+                var mainWindow = desktop.MainWindow ?? 
+                    throw new InvalidOperationException("MainWindow not initialized");
+                return new DialogService(sp, mainWindow);
+            });
+
+            _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true
+            });
+
+            // Initialize logging
+            var loggingService = _serviceProvider.GetRequiredService<ILoggingService>();
+            Logging.Initialize(loggingService);
+
+            // Store AudioEngine instance
+            _audio = _serviceProvider.GetRequiredService<AudioEngine>();
+
+            DisableAvaloniaDataAnnotationValidation();
+        }
+
+        private void ConfigureMainWindow(IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            if (_serviceProvider == null)
+                throw new InvalidOperationException("ServiceProvider not initialized");
+
+            var mainWindow = new MainWindow();
+            desktop.MainWindow = mainWindow;
+
+            var viewModel = _serviceProvider.GetRequiredService<MainWindowViewModel>();
+            mainWindow.DataContext = viewModel;
+
+            desktop.Exit += OnApplicationExit;
+        }
+
+        private async void OnApplicationExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
+        {
+            try
+            {
+                await DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Error during application shutdown: {ex}");
+            }
+        }
+
+        private void StartAudioEngine()
+        {
+            try
+            {
+                Audio.Start();
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Failed to start audio engine: {ex}");
+                throw;
+            }
+        }
+
+        private static void DisableAvaloniaDataAnnotationValidation()
+        {
+            var dataValidationPluginsToRemove = BindingPlugins.DataValidators
+                .OfType<DataAnnotationsValidationPlugin>()
+                .ToArray();
+
             foreach (var plugin in dataValidationPluginsToRemove)
             {
                 BindingPlugins.DataValidators.Remove(plugin);
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                if (_audio != null)
+                {
+                    await Task.Run(() => _audio.Dispose());
+                }
+
+                if (_serviceProvider is IAsyncDisposable asyncDisposable)
+                {
+                    await asyncDisposable.DisposeAsync();
+                }
+                else
+                {
+                    _serviceProvider.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Error disposing application resources: {ex}");
+                throw;
             }
         }
     }

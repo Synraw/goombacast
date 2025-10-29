@@ -38,6 +38,7 @@ namespace GoombaCast.Services
             catch (UriFormatException)
             {
                 Logging.LogWarning($"Invalid server address in settings: {settings.ServerAddress}");
+                settings.ServerAddress = string.Empty;
             }
 
             _icecastStream = new IcecastStream();
