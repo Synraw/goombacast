@@ -50,6 +50,12 @@
 					Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
 			<Setter Property="Opacity" Value="0.8"/>
 		</Style>
+
+		<!-- Add new style for clipping ProgressBars -->
+		<Style Selector="ProgressBar.clipping">
+			<Setter Property="BorderBrush" Value="Red"/>
+			<Setter Property="BorderThickness" Value="2"/>
+		</Style>
 	</Window.Styles>
 
 	<!-- Main Content Panel -->
@@ -119,15 +125,6 @@
 							   Text="{Binding ListenerCount}"
 							   VerticalAlignment="Bottom"
 							   HorizontalAlignment="Center"/>
-				<TextBlock IsVisible="{Binding IsClipping}"
-						   Margin="16,0,5,5"
-						   FontSize="16"
-						   FontWeight="Bold"
-						   Foreground="Red"
-						   FontFamily="Cascadia Mono"
-						   Text="CLIPPING"
-						   VerticalAlignment="Bottom"
-						   HorizontalAlignment="Left" />
 			</Panel>
 
 			<!-- Stream Control Button -->
@@ -164,25 +161,48 @@
 						Spacing="5"
 						Margin="5">
 				<TextBlock FontSize="12"
-						   TextAlignment="Left"
-						   Margin="5,0,-5,-8">Stream Volume</TextBlock>
-				<ProgressBar Height="14"
-							 Minimum="-90"
-							 Maximum="0"
-							 Value="{Binding LeftDb}"
-							 Margin="5,5,5,0"
-							 Foreground="{Binding LeftDb, Converter={StaticResource DbBrush}}"/>
-				<TextBlock FontSize="12"
+						   TextAlignment="Center"
+						   Margin="5,0,5,0">Stream Volume</TextBlock>
+				
+				<!-- Left Channel with Peak Marker -->
+				<Grid Width="275"> 
+					<ProgressBar Height="14"
+								 Minimum="-90"
+								 Maximum="0"
+								 Value="{Binding LeftDb}"
+								 Classes.clipping="{Binding IsClipping}"
+								 Foreground="{Binding LeftDb, Converter={StaticResource DbBrush}}"
+								 HorizontalAlignment="Stretch"/>
+					<Border Height="14"
+							Width="2"
+							Background="White"
+							HorizontalAlignment="Left"
+							Margin="{Binding LeftPeakPosition}"
+							ToolTip.Tip="{Binding LeftPeakDb, StringFormat={}{0:F1} dB}"/>
+				</Grid>
+				
+				<TextBlock FontSize="14"
 						   TextAlignment="Center"
 						   Margin="6,-3,6,-3">
 					-48 -42 -36 -30 -24 -18 -12 -6 0 dB
 				</TextBlock>
-				<ProgressBar Height="14"
-							 Minimum="-90"
-							 Maximum="0"
-							 Value="{Binding RightDb}"
-							 Margin="5,0,5,5"
-							 Foreground="{Binding RightDb, Converter={StaticResource DbBrush}}"/>
+				
+				<!-- Right Channel with Peak Marker -->
+				<Grid Width="275">
+					<ProgressBar Height="14"
+								 Minimum="-90"
+								 Maximum="0"
+								 Value="{Binding RightDb}"
+								 Classes.clipping="{Binding IsClipping}"
+								 Foreground="{Binding RightDb, Converter={StaticResource DbBrush}}"
+								 HorizontalAlignment="Stretch"/>
+					<Border Height="14"
+							Width="2"
+							Background="White"
+							HorizontalAlignment="Left"
+							Margin="{Binding LeftPeakPosition}"
+							ToolTip.Tip="{Binding RightPeakDb, StringFormat={}{0:F1} dB}"/>
+				</Grid>
 			</StackPanel>
 
 			<!-- Settings and Log Controls -->

@@ -1,4 +1,6 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using Avalonia;
+using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
@@ -16,10 +18,21 @@ namespace GoombaCast.ViewModels
         private readonly AudioEngine? _audioEngine;
         private readonly ILoggingService? _loggingService;
         private readonly CancellationTokenSource _cts = new();
+        private bool _disposed;
+
         private DateTime _streamStartTime;
         private Timer? _streamTimer;
         private Timer? _iceStatsRefresh;
-        private bool _disposed;
+        private Timer? _peakResetTimer;
+
+        private const float PeakFallRate = 15.0f;
+        private const float UpdateInterval = 50.0f;
+
+        [ObservableProperty]
+        private float _leftPeakDb = -90;
+
+        [ObservableProperty]
+        private float _rightPeakDb = -90;
 
         [ObservableProperty]
         private string _windowTitle = "GoombaCast (Design Time)";
@@ -47,10 +60,11 @@ namespace GoombaCast.ViewModels
 
         public IAsyncRelayCommand? OpenSettingsCommand { get; }
 
-        // Design time constructor
+        public Thickness LeftPeakPosition => new(CalculatePeakPosition(LeftPeakDb), 0, 0, 0);
+        public Thickness RightPeakPosition => new(CalculatePeakPosition(RightPeakDb), 0, 0, 0);
+
         public MainWindowViewModel()
         {
-
         }
 
         public MainWindowViewModel(
@@ -91,18 +105,16 @@ namespace GoombaCast.ViewModels
 
         private void InitializeTimers()
         {
-            _streamTimer = new Timer(500)
-            {
-                AutoReset = true
-            };
+            _streamTimer = new Timer(500) { AutoReset = true };
             _streamTimer.Elapsed += OnStreamTimerElapsed;
 
-            _iceStatsRefresh = new Timer(500)
-            {
-                AutoReset = true
-            };
+            _iceStatsRefresh = new Timer(500) { AutoReset = true };
             _iceStatsRefresh.Elapsed += OnIceStatsRefreshElapsed;
             _iceStatsRefresh.Start();
+
+            _peakResetTimer = new Timer(UpdateInterval) { AutoReset = true };
+            _peakResetTimer.Elapsed += OnPeakUpdateTimerElapsed;
+            _peakResetTimer.Start();
         }
 
         private void ScanInputDevices()
@@ -113,10 +125,59 @@ namespace GoombaCast.ViewModels
             }
         }
 
+        private double CalculatePeakPosition(double peakDb) 
+            => 5 + ((peakDb + 90) / 90) * 275;
+
         private void OnLevelsAvailable(float left, float right)
         {
-            LeftDb = left;
-            RightDb = right;
+            UpdateLevels(left, right);
+        }
+
+        public void UpdateLevels(float leftDb, float rightDb)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                LeftDb = leftDb;
+                RightDb = rightDb;
+
+                if (leftDb > LeftPeakDb)
+                {
+                    LeftPeakDb = leftDb;
+                }
+                
+                if (rightDb > RightPeakDb)
+                {
+                    RightPeakDb = rightDb;
+                }
+            });
+        }
+
+        private void OnPeakUpdateTimerElapsed(object? sender, ElapsedEventArgs e)
+        {
+            var decreaseAmount = (PeakFallRate * UpdateInterval) / 1000.0f;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (LeftPeakDb > LeftDb)
+                {
+                    LeftPeakDb = Math.Max(LeftDb, LeftPeakDb - decreaseAmount);
+                }
+
+                if (RightPeakDb > RightDb)
+                {
+                    RightPeakDb = Math.Max(RightDb, RightPeakDb - decreaseAmount);
+                }
+            });
+        }
+
+        partial void OnLeftPeakDbChanged(float value)
+        {
+            OnPropertyChanged(nameof(LeftPeakPosition));
+        }
+
+        partial void OnRightPeakDbChanged(float value)
+        {
+            OnPropertyChanged(nameof(RightPeakPosition));
         }
         
         private void OnClippingDetected(bool isClipping)
@@ -197,9 +258,9 @@ namespace GoombaCast.ViewModels
                     _cts.Cancel();
                     _streamTimer?.Dispose();
                     _iceStatsRefresh?.Dispose();
+                    _peakResetTimer?.Dispose(); 
                     _cts.Dispose();
 
-                    // Unsubscribe from events
                     App.Audio.LevelsAvailable -= OnLevelsAvailable;
                     App.Audio.ClippingDetected -= OnClippingDetected;
 

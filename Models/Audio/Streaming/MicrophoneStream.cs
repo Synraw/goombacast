@@ -10,7 +10,7 @@ using System.Linq;
 namespace GoombaCast.Models.Audio.Streaming
 {
     // Wrapper for MMDevice to represent input device the user can choose
-    public class InputDevice(MMDevice device)
+    public sealed class InputDevice(MMDevice device)
     {
         public MMDevice Device { get; } = device;
 
