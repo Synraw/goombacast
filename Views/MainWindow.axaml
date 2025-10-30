@@ -1,265 +1,239 @@
 <Window xmlns="https://github.com/avaloniaui"
-		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-		xmlns:vm="using:GoombaCast.ViewModels"
-		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-		xmlns:conv="using:GoombaCast.Converters"
-		mc:Ignorable="d"
-		x:Class="GoombaCast.Views.MainWindow"
-		x:DataType="vm:MainWindowViewModel"
-		Width="550" Height="550"
-		Icon="/Assets/goomba-logo.ico"
-		Title="GoombaCast"
-		CanResize="False"
-		TransparencyLevelHint="AcrylicBlur"
-		Background="Transparent"
-		ExtendClientAreaToDecorationsHint="True"
-		WindowStartupLocation="CenterScreen">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:GoombaCast.ViewModels"
+        xmlns:conv="using:GoombaCast.Converters"
+        mc:Ignorable="d"
+        x:Class="GoombaCast.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="GoombaCast"
+        Icon="/Assets/goomba-logo.ico"
+        Width="550" Height="550"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False"
+        Background="Transparent"
+        TransparencyLevelHint="AcrylicBlur"
+        ExtendClientAreaToDecorationsHint="True">
 
-	<!-- Design-Time Data Context -->
-	<Design.DataContext>
-		<vm:MainWindowViewModel/>
-	</Design.DataContext>
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
 
-	<!-- Resource Definitions -->
-	<Window.Resources>
-		<conv:DbToBrushConverter x:Key="DbBrush"
-								 MinDb="-90"
-								 YellowThresholdDb="-18"
-								 RedThresholdDb="-6"
-								 UseGradient="True"/>
-	</Window.Resources>
+    <Window.Resources>
+        <conv:DbToBrushConverter x:Key="DbBrush"
+                                MinDb="-90"
+                                YellowThresholdDb="-18"
+                                RedThresholdDb="-6"
+                                UseGradient="True"/>
+        <conv:BoolToColorConverter x:Key="StreamButtonColorConverter"
+                                  TrueValue="Red"
+                                  FalseValue="Green"/>
+        <conv:BoolToStringConverter x:Key="StreamButtonTextConverter"
+                                   TrueValue="Stop Streaming"
+                                   FalseValue="Start Streaming"/>
+    </Window.Resources>
 
-	<!-- Global Styles -->
-	<Window.Styles>
-		<!-- ProgressBar Style -->
-		<Style Selector="ProgressBar /template/ Border#PART_Indicator">
-			<Setter Property="Background"
-					Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
-		</Style>
+    <Window.Styles>
+        <Style Selector="ProgressBar /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+        </Style>
+        <Style Selector="Button#StreamStopStartButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
+        </Style>
+        <Style Selector="Button#StreamStopStartButton:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
+            <Setter Property="Opacity" Value="0.8"/>
+        </Style>
+        <Style Selector="ProgressBar.clipping">
+            <Setter Property="BorderBrush" Value="Red"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+    </Window.Styles>
 
-		<!-- Stream Button Hover Style -->
-		<Style Selector="Button#StreamStopStartButton:pointerover /template/ ContentPresenter">
-			<Setter Property="Background"
-					Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
-		</Style>
+    <Panel>
+        <ExperimentalAcrylicBorder IsHitTestVisible="False">
+            <ExperimentalAcrylicBorder.Material>
+                <ExperimentalAcrylicMaterial BackgroundSource="Digger"
+                                           TintColor="Black"
+                                           TintOpacity="1"
+                                           MaterialOpacity="0.65"/>
+            </ExperimentalAcrylicBorder.Material>
+        </ExperimentalAcrylicBorder>
 
-		<!-- Stream Button Disabled Style -->
-		<Style Selector="Button#StreamStopStartButton:disabled /template/ ContentPresenter">
-			<Setter Property="Background"
-					Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
-			<Setter Property="Opacity" Value="0.8"/>
-		</Style>
+        <Image Source="/Assets/goomba-logo.ico"
+               Width="32" Height="32"
+               Margin="5"
+               IsHitTestVisible="False"
+               HorizontalAlignment="Left"
+               VerticalAlignment="Top"/>
 
-		<!-- Add new style for clipping ProgressBars -->
-		<Style Selector="ProgressBar.clipping">
-			<Setter Property="BorderBrush" Value="Red"/>
-			<Setter Property="BorderThickness" Value="2"/>
-		</Style>
-	</Window.Styles>
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
+              ColumnDefinitions="Auto,Auto,Auto,*"
+              ShowGridLines="False">
 
-	<!-- Main Content Panel -->
-	<Panel>
-		<!-- Window Background Effect -->
-		<ExperimentalAcrylicBorder IsHitTestVisible="False">
-			<ExperimentalAcrylicBorder.Material>
-				<ExperimentalAcrylicMaterial
-				BackgroundSource="Digger"
-				TintColor="Black"
-				TintOpacity="1"
-				MaterialOpacity="0.65"/>
-			</ExperimentalAcrylicBorder.Material>
-		</ExperimentalAcrylicBorder>
+            <TextBlock Text="{Binding WindowTitle}"
+                      Grid.ColumnSpan="5"
+                      FontSize="16"
+                      IsHitTestVisible="False"
+                      TextAlignment="Center"
+                      Margin="10"/>
 
-		<!-- Application Logo -->
-		<Image Source="/Assets/goomba-logo.ico"
-			   Width="32" Height="32"
-			   Margin="5"
-			   IsHitTestVisible="False"
-			   HorizontalAlignment="Left"
-			   VerticalAlignment="Top"/>
+            <!-- Stream Time Panel -->
+            <Border Grid.Row="1"
+                    Grid.ColumnSpan="5"
+                    Height="100"
+                    Margin="5,0,5,0"
+                    Background="Black">
+                <Grid RowDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal"
+                              Margin="5"
+                              VerticalAlignment="Center">
+                        <TextBlock Text="Stream Time:"
+                                 Foreground="White"
+                                 Margin="10"
+                                 FontSize="42"
+                                 FontFamily="Cascadia Mono"/>
+                        <TextBlock Text="{Binding StreamingTime}"
+                                 Foreground="White"
+                                 Margin="5"
+                                 FontFamily="Cascadia Mono"
+                                 FontSize="42"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ListenerCountText"
+                             Grid.Row="1"
+                             Text="{Binding ListenerCount}"
+                             IsVisible="{Binding IsListenerCountVisible}"
+                             Foreground="White"
+                             FontFamily="Cascadia Mono"
+                             FontSize="14"
+                             HorizontalAlignment="Center"
+                             Margin="5"/>
+                </Grid>
+            </Border>
 
-		<!-- Main Layout Grid -->
-		<Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
-			  ColumnDefinitions="Auto,Auto,Auto,*"
-			  ShowGridLines="False">
+            <!-- Controls -->
+            <Button x:Name="StreamStopStartButton"
+                    Grid.Row="2"
+                    Command="{Binding ToggleStreamCommand}"
+                    Content="{Binding IsStreaming, Converter={StaticResource StreamButtonTextConverter}}"
+                    Background="{Binding IsStreaming, Converter={StaticResource StreamButtonColorConverter}}"
+                    IsEnabled="{Binding IsStreamButtonEnabled}"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center"
+                    Margin="5"/>
 
-			<!-- Window Title Display -->
-			<TextBlock FontSize="16"
-					   Grid.ColumnSpan="5"
-					   IsHitTestVisible="False"
-					   TextAlignment="Center"
-					   Margin="10">
-				<Run Text="{Binding WindowTitle}"/>
-			</TextBlock>
+            <!-- Media Controls -->
+            <UniformGrid Grid.Row="3" Columns="2" Margin="5">
+                <Button Content="Record"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"/>
+                <Button Content="Mixer"
+                        Margin="5,0,0,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"/>
+            </UniformGrid>
 
-			<!-- Stream Time Display Panel -->
-			<Panel Grid.Row="1"
-				   Grid.ColumnSpan="5"
-				   Height="100"
-				   Margin="5,0,5,0"
-				   VerticalAlignment="Top">
+            <!-- Volume Meters -->
+            <StackPanel Grid.Row="2"
+                      Grid.Column="2"
+                      Grid.RowSpan="2"
+                      Margin="5"
+                      Spacing="5">
+                <TextBlock Text="Stream Volume"
+                         FontSize="14"
+                         TextAlignment="Center"
+                         Margin=""/>
 
-				<Rectangle Grid.ColumnSpan="3" Grid.RowSpan="3" Fill="Black"/>
+                <Grid Width="275">
+                    <ProgressBar Height="14"
+                               Value="{Binding LeftDb}"
+                               Minimum="-90"
+                               Maximum="0"
+                               Classes.clipping="{Binding IsClipping}"
+                               Foreground="{Binding LeftDb, Converter={StaticResource DbBrush}}"
+                               HorizontalAlignment="Stretch"/>
+                    <Border Height="14"
+                          Width="2"
+                          Background="White"
+                          HorizontalAlignment="Left"
+                          Margin="{Binding LeftPeakPosition}"
+                          ToolTip.Tip="{Binding LeftPeakDb, StringFormat={}{0:F1} dB}"/>
+                </Grid>
 
-				<StackPanel Orientation="Horizontal" Margin="5">
-					<TextBlock Text="Stream Time:"
-							   Foreground="White"
-							   Margin="10"
-							   FontSize="42"
-							   FontFamily="Cascadia Mono"
-							   VerticalAlignment="Center"/>
-					<TextBlock Grid.Row="1"
-							   Text="{Binding StreamingTime}"
-							   VerticalAlignment="Center"
-							   Foreground="White"
-							   Margin="5"
-							   FontFamily="Cascadia Mono"
-							   FontSize="42"/>
-				</StackPanel>
-				<TextBlock x:Name="ListenerCountText" IsVisible="False"
-							   Margin="5,5,0,5"
-							   FontSize="14"
-							   Foreground="White"
-							   FontFamily="Cascadia Mono"
-							   Text="{Binding ListenerCount}"
-							   VerticalAlignment="Bottom"
-							   HorizontalAlignment="Center"/>
-			</Panel>
+                <TextBlock Text="-48 -42 -36 -30 -24 -18 -12 -6 0 dB"
+                         FontSize="14"
+                         TextAlignment="Center"
+                         Margin="6,-3"/>
 
-			<!-- Stream Control Button -->
-			<Button x:Name="StreamStopStartButton"
-					Grid.Row="2"
-					Content="Start Stream"
-					Background="Green"
-					Margin="5"
-					HorizontalAlignment="Stretch"
-					HorizontalContentAlignment="Center"
-					Click="StreamStopStartButton_Click"/>
+                <Grid Width="275">
+                    <ProgressBar Height="14"
+                               Value="{Binding RightDb}"
+                               Minimum="-90"
+                               Maximum="0"
+                               Classes.clipping="{Binding IsClipping}"
+                               Foreground="{Binding RightDb, Converter={StaticResource DbBrush}}"
+                               HorizontalAlignment="Stretch"/>
+                    <Border Height="14"
+                          Width="2"
+                          Background="White"
+                          HorizontalAlignment="Left"
+                          Margin="{Binding RightPeakPosition}"
+                          ToolTip.Tip="{Binding RightPeakDb, StringFormat={}{0:F1} dB}"/>
+                </Grid>
+            </StackPanel>
 
-			<!-- Record and Mixer Controls -->
-			<Grid Grid.Row="3"
-				  RowDefinitions="Auto,Auto"
-				  ColumnDefinitions="*,*"
-				  Margin="5">
-				<Button Grid.Column="0"
-						Content="Record"
-						HorizontalAlignment="Stretch"
-						HorizontalContentAlignment="Center"/>
-				<Button Grid.Column="1"
-						Content="Mixer"
-						Margin="5,0,0,0"
-						HorizontalAlignment="Stretch"
-						HorizontalContentAlignment="Center"/>
-			</Grid>
+            <!-- Settings and Log Controls -->
+            <StackPanel Grid.Row="2"
+                      Grid.Column="3"
+                      Grid.RowSpan="2"
+                      Margin="5"
+                      Spacing="5">
+                <Button Command="{Binding OpenSettingsCommand}"
+                        Content="Settings"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"/>
+                <Button x:Name="LogHideShowButton"
+                        Content="Hide Log"
+                        Click="ButtonClickToggleLog"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"/>
+            </StackPanel>
 
-			<!-- Volume Meters -->
-			<StackPanel Grid.Row="2"
-						Grid.Column="2"
-						Grid.RowSpan="2"
-						Orientation="Vertical"
-						Spacing="5"
-						Margin="5">
-				<TextBlock FontSize="12"
-						   TextAlignment="Center"
-						   Margin="5,0,5,0">Stream Volume</TextBlock>
-				
-				<!-- Left Channel with Peak Marker -->
-				<Grid Width="275"> 
-					<ProgressBar Height="14"
-								 Minimum="-90"
-								 Maximum="0"
-								 Value="{Binding LeftDb}"
-								 Classes.clipping="{Binding IsClipping}"
-								 Foreground="{Binding LeftDb, Converter={StaticResource DbBrush}}"
-								 HorizontalAlignment="Stretch"/>
-					<Border Height="14"
-							Width="2"
-							Background="White"
-							HorizontalAlignment="Left"
-							Margin="{Binding LeftPeakPosition}"
-							ToolTip.Tip="{Binding LeftPeakDb, StringFormat={}{0:F1} dB}"/>
-				</Grid>
-				
-				<TextBlock FontSize="14"
-						   TextAlignment="Center"
-						   Margin="6,-3,6,-3">
-					-48 -42 -36 -30 -24 -18 -12 -6 0 dB
-				</TextBlock>
-				
-				<!-- Right Channel with Peak Marker -->
-				<Grid Width="275">
-					<ProgressBar Height="14"
-								 Minimum="-90"
-								 Maximum="0"
-								 Value="{Binding RightDb}"
-								 Classes.clipping="{Binding IsClipping}"
-								 Foreground="{Binding RightDb, Converter={StaticResource DbBrush}}"
-								 HorizontalAlignment="Stretch"/>
-					<Border Height="14"
-							Width="2"
-							Background="White"
-							HorizontalAlignment="Left"
-							Margin="{Binding LeftPeakPosition}"
-							ToolTip.Tip="{Binding RightPeakDb, StringFormat={}{0:F1} dB}"/>
-				</Grid>
-			</StackPanel>
+            <!-- Input Gain -->
+            <Grid Grid.Row="4"
+                  Grid.ColumnSpan="4"
+                  Margin="5"
+                  ColumnDefinitions="Auto,*,Auto"
+                  RowDefinitions="Auto,Auto">
+                <TextBlock Text="Input Gain"
+                         Grid.ColumnSpan="3"
+                         HorizontalAlignment="Center"/>
+                <TextBlock Text="0dB"
+                         Grid.Row="1"
+                         FontSize="10"
+                         VerticalAlignment="Center"/>
+                <Slider Grid.Row="1"
+                        Grid.Column="1"
+                        Minimum="0"
+                        Maximum="24"
+                        Value="{Binding VolumeLevel}"
+                        Margin="5,0"/>
+                <TextBlock Text="+24dB"
+                         Grid.Row="1"
+                         Grid.Column="2"
+                         FontSize="10"
+                         VerticalAlignment="Center"/>
+            </Grid>
 
-			<!-- Settings and Log Controls -->
-			<Button Grid.Row="2"
-					Grid.Column="3"
-					Margin="5"
-					HorizontalAlignment="Stretch"
-					HorizontalContentAlignment="Center"
-					Command="{Binding OpenSettingsCommand}">
-				Settings
-			</Button>
-			<Button x:Name="LogHideShowButton"
-					Grid.Row="3"
-					Grid.Column="3"
-					Margin="5"
-					HorizontalAlignment="Stretch"
-					HorizontalContentAlignment="Center"
-					Click="ButtonClickToggleLog">
-				Hide Log
-			</Button>
-
-			<!-- Input Gain Control -->
-			<Grid Grid.Row="4"
-				  Grid.ColumnSpan="4"
-				  ShowGridLines="False"
-				  ColumnSpacing="5"
-				  RowDefinitions="Auto,Auto,Auto"
-				  ColumnDefinitions="Auto,*,Auto">
-				<TextBlock HorizontalAlignment="Center"
-						   Grid.ColumnSpan="5">Input Gain</TextBlock>
-				<TextBlock Grid.Column="0"
-						   FontSize="10"
-						   Text="0dB"
-						   TextAlignment="Left"
-						   VerticalAlignment="Center"
-						   Margin="5"/>
-				<Slider Grid.Column="1"
-						Minimum="0"
-						Maximum="24"
-						Value="{Binding VolumeLevel}"
-						DockPanel.Dock="Top"/>
-				<TextBlock Grid.Column="2"
-						   FontSize="10"
-						   Text="+24dB"
-						   TextAlignment="Right"
-						   VerticalAlignment="Center"
-						   Margin="5"/>
-			</Grid>
-
-			<!-- Log Window -->
-			<TextBox x:Name="LogWindow"
-					 Grid.Row="5"
-					 Grid.ColumnSpan="4"
-					 Text="{Binding LogLines}"
-					 Margin="5"
-					 IsReadOnly="True"
-					 TextWrapping="Wrap"/>
-		</Grid>
-	</Panel>
+            <!-- Log Window -->
+            <TextBox x:Name="LogWindow"
+                     Grid.Row="5"
+                     Grid.ColumnSpan="4"
+                     Text="{Binding LogLines}"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap"
+                     Margin="5"/>
+        </Grid>
+    </Panel>
 </Window>

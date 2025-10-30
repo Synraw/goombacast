@@ -14,6 +14,10 @@ namespace GoombaCast.ViewModels
 {
     public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
+        private const float PeakFallRate = 15.0f;
+        private const float UpdateInterval = 50.0f;
+        private const float ProgressBarWidth = 275.0f;
+
         private readonly IDialogService? _dialogService;
         private readonly AudioEngine? _audioEngine;
         private readonly ILoggingService? _loggingService;
@@ -25,210 +29,157 @@ namespace GoombaCast.ViewModels
         private Timer? _iceStatsRefresh;
         private Timer? _peakResetTimer;
 
-        private const float PeakFallRate = 15.0f;
-        private const float UpdateInterval = 50.0f;
-
-        [ObservableProperty]
-        private float _leftPeakDb = -90;
-
-        [ObservableProperty]
-        private float _rightPeakDb = -90;
-
-        [ObservableProperty]
-        private string _windowTitle = "GoombaCast (Design Time)";
-
-        [ObservableProperty]
-        private int _volumeLevel;
-
-        [ObservableProperty]
-        private float _leftDb;
-
-        [ObservableProperty]
-        private float _rightDb;
+        [ObservableProperty] private float _leftPeakDb = -90;
+        [ObservableProperty] private float _rightPeakDb = -90;
+        [ObservableProperty] private float _leftDb;
+        [ObservableProperty] private float _rightDb;
+        [ObservableProperty] private bool _isClipping;
+        [ObservableProperty] private int _volumeLevel;
         
-        [ObservableProperty]
-        private bool _isClipping;
+        [ObservableProperty] private string _windowTitle = "GoombaCast (Design Time)";
+        [ObservableProperty] private string _logLines = string.Empty;
+        [ObservableProperty] private string _streamingTime = "00:00:00";
+        [ObservableProperty] private string _listenerCount = "Listeners: N/A";
+        
+        [ObservableProperty] private bool _isStreaming;
+        [ObservableProperty] private bool _isStreamButtonEnabled = true;
+        [ObservableProperty] private bool _isListenerCountVisible;
 
-        [ObservableProperty]
-        private string _logLines = string.Empty;
-
-        [ObservableProperty]
-        private string _streamingTime = "00:00:00";
-
-        [ObservableProperty]
-        private string _listenerCount = "Listeners: N/A";
-
-        public IAsyncRelayCommand? OpenSettingsCommand { get; }
+        public IAsyncRelayCommand? OpenSettingsCommand { get; private set; }
+        public IAsyncRelayCommand? ToggleStreamCommand { get; private set; }
 
         public Thickness LeftPeakPosition => new(CalculatePeakPosition(LeftPeakDb), 0, 0, 0);
         public Thickness RightPeakPosition => new(CalculatePeakPosition(RightPeakDb), 0, 0, 0);
 
-        public MainWindowViewModel()
-        {
-        }
+        public MainWindowViewModel() { }
 
-        public MainWindowViewModel(
-            AudioEngine audioEngine,
-            IDialogService dialogService,
-            ILoggingService loggingService)
+        public MainWindowViewModel(AudioEngine audioEngine, IDialogService dialogService, ILoggingService loggingService)
         {
             _audioEngine = audioEngine ?? throw new ArgumentNullException(nameof(audioEngine));
             _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
             _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
 
-            var settings = SettingsService.Default.Settings;
-            _volumeLevel = settings.VolumeLevel;
-            _windowTitle = $"GoombaCast: {settings.StreamName}";
-
-            OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
-
-            InitializeAudioHandlers();
-            InitializeLogging();
+            InitializeViewModel();
+            SetupCommands();
+            SetupEventHandlers();
             InitializeTimers();
             ScanInputDevices();
         }
 
-        private void InitializeAudioHandlers()
+        private void InitializeViewModel()
+        {
+            var settings = SettingsService.Default.Settings;
+            VolumeLevel = settings.VolumeLevel;
+            WindowTitle = $"GoombaCast: {settings.StreamName}";
+        }
+
+        private void SetupCommands()
+        {
+            OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
+            ToggleStreamCommand = new AsyncRelayCommand(ToggleStream);
+        }
+
+        private void SetupEventHandlers()
         {
             App.Audio.LevelsAvailable += OnLevelsAvailable;
             App.Audio.ClippingDetected += OnClippingDetected;
-            VolumeLevel = (int)App.Audio.GetGainLevel();
-        }
-
-        private void InitializeLogging()
-        {
             if (_loggingService != null)
             {
                 _loggingService.LogLineAdded += OnLogLineAdded;
             }
+            VolumeLevel = (int)App.Audio.GetGainLevel();
         }
 
         private void InitializeTimers()
         {
-            _streamTimer = new Timer(500) { AutoReset = true };
-            _streamTimer.Elapsed += OnStreamTimerElapsed;
-
-            _iceStatsRefresh = new Timer(500) { AutoReset = true };
-            _iceStatsRefresh.Elapsed += OnIceStatsRefreshElapsed;
-            _iceStatsRefresh.Start();
-
-            _peakResetTimer = new Timer(UpdateInterval) { AutoReset = true };
-            _peakResetTimer.Elapsed += OnPeakUpdateTimerElapsed;
-            _peakResetTimer.Start();
+            _streamTimer = CreateTimer(500, OnStreamTimerElapsed);
+            _iceStatsRefresh = CreateTimer(500, OnIceStatsRefreshElapsed, true);
+            _peakResetTimer = CreateTimer(UpdateInterval, OnPeakUpdateTimerElapsed, true);
         }
 
-        private void ScanInputDevices()
+        private Timer CreateTimer(double interval, ElapsedEventHandler handler, bool startImmediately = false)
         {
-            foreach (var device in InputDevice.GetActiveInputDevices())
-            {
-                Logging.Log($"Found input device: {device}");
-            }
+            var timer = new Timer(interval) { AutoReset = true };
+            timer.Elapsed += handler;
+            if (startImmediately) timer.Start();
+            return timer;
         }
 
-        private double CalculatePeakPosition(double peakDb) 
-            => 5 + ((peakDb + 90) / 90) * 275;
-
-        private void OnLevelsAvailable(float left, float right)
-        {
-            UpdateLevels(left, right);
-        }
-
-        public void UpdateLevels(float leftDb, float rightDb)
+        private void UpdatePeakLevels(float leftDb, float rightDb)
         {
             Dispatcher.UIThread.Post(() =>
             {
                 LeftDb = leftDb;
                 RightDb = rightDb;
-
-                if (leftDb > LeftPeakDb)
-                {
-                    LeftPeakDb = leftDb;
-                }
-                
-                if (rightDb > RightPeakDb)
-                {
-                    RightPeakDb = rightDb;
-                }
+                LeftPeakDb = leftDb > LeftPeakDb ? leftDb : LeftPeakDb;
+                RightPeakDb = rightDb > RightPeakDb ? rightDb : RightPeakDb;
             });
         }
 
-        private void OnPeakUpdateTimerElapsed(object? sender, ElapsedEventArgs e)
+        private void UpdatePeakFalloff(float decreaseAmount)
         {
-            var decreaseAmount = (PeakFallRate * UpdateInterval) / 1000.0f;
-
             Dispatcher.UIThread.Post(() =>
             {
                 if (LeftPeakDb > LeftDb)
-                {
                     LeftPeakDb = Math.Max(LeftDb, LeftPeakDb - decreaseAmount);
-                }
-
                 if (RightPeakDb > RightDb)
-                {
                     RightPeakDb = Math.Max(RightDb, RightPeakDb - decreaseAmount);
-                }
             });
         }
 
-        partial void OnLeftPeakDbChanged(float value)
-        {
-            OnPropertyChanged(nameof(LeftPeakPosition));
-        }
+        private double CalculatePeakPosition(double peakDb) 
+            => 5 + ((peakDb + 90) / 90) * ProgressBarWidth;
 
-        partial void OnRightPeakDbChanged(float value)
-        {
-            OnPropertyChanged(nameof(RightPeakPosition));
-        }
+        private void OnLevelsAvailable(float left, float right) => UpdatePeakLevels(left, right);
         
-        private void OnClippingDetected(bool isClipping)
-        {
-            IsClipping = isClipping;
-        }
+        private void OnPeakUpdateTimerElapsed(object? sender, ElapsedEventArgs e) 
+            => UpdatePeakFalloff((PeakFallRate * UpdateInterval) / 1000.0f);
 
-        private void OnLogLineAdded(object? sender, string message)
-        {
-            WriteLineToLog(message);
-        }
-
-        private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e)
-        {
-            var duration = DateTime.Now - _streamStartTime;
-            StreamingTime = $"{duration:hh\\:mm\\:ss}";
-        }
+        private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e) 
+            => StreamingTime = $"{(DateTime.Now - _streamStartTime):hh\\:mm\\:ss}";
 
         private async void OnIceStatsRefreshElapsed(object? sender, ElapsedEventArgs e)
         {
+            if (!App.Audio.IsBroadcasting) return;
             var icestats = await IcecastStats.GetStatsAsync().ConfigureAwait(false);
-
-            if (App.Audio.IsBroadcasting)
-            {
-                ListenerCount = $"Listeners: {icestats?.GetListenerCount()}";
-            }
+            ListenerCount = $"Listeners: {icestats?.GetListenerCount()}";
         }
+
+        private void OnClippingDetected(bool isClipping) => IsClipping = isClipping;
+        
+        private void OnLogLineAdded(object? sender, string message) => WriteLineToLog(message);
 
         public void WriteLineToLog(string message)
         {
-            if (string.IsNullOrEmpty(message)) return;
-            LogLines += $"{message}\n";
+            if (!string.IsNullOrEmpty(message))
+                LogLines += $"{message}\n";
         }
 
-        public void UpdateWindowTitle(string streamName)
-        {
-            WindowTitle = string.IsNullOrEmpty(streamName)
-                ? "GoombaCast"
-                : $"GoombaCast: {streamName}";
-        }
+        public void UpdateWindowTitle(string streamName) 
+            => WindowTitle = string.IsNullOrEmpty(streamName) ? "GoombaCast" : $"GoombaCast: {streamName}";
 
-        public void StartTimer()
+        private void StartTimer()
         {
             _streamStartTime = DateTime.Now;
             _streamTimer?.Start();
         }
 
-        public void StopTimer()
+        private void StopTimer()
         {
             _streamTimer?.Stop();
             StreamingTime = "00:00:00";
+        }
+
+        private void ScanInputDevices()
+        {
+            foreach (var device in InputDevice.GetActiveInputDevices())
+                Logging.Log($"Found input device: {device}");
+        }
+
+        private async Task OpenSettingsAsync()
+        {
+            if (_dialogService != null)
+                await _dialogService.ShowSettingsDialogAsync().ConfigureAwait(false);
         }
 
         partial void OnVolumeLevelChanged(int value)
@@ -242,31 +193,69 @@ namespace GoombaCast.ViewModels
             _audioEngine?.SetGainLevel(value);
         }
 
-        private async Task OpenSettingsAsync()
+        partial void OnLeftPeakDbChanged(float value) => OnPropertyChanged(nameof(LeftPeakPosition));
+        partial void OnRightPeakDbChanged(float value) => OnPropertyChanged(nameof(RightPeakPosition));
+
+        private async Task ToggleStream()
         {
-            if (_dialogService is null) return;
-            await _dialogService.ShowSettingsDialogAsync()
-                .ConfigureAwait(false);
+            var settings = SettingsService.Default.Settings;
+            IsStreamButtonEnabled = false;
+
+            try
+            {
+                if (!App.Audio.IsBroadcasting)
+                {
+                    await StartStreaming(settings.StreamName).ConfigureAwait(true);
+                }
+                else
+                {
+                    StopStreaming(settings.StreamName);
+                }
+            }
+            catch (Exception ex)
+            {
+                string startOrStop = App.Audio.IsBroadcasting ? "stopping" : "starting";
+                Logging.LogError($"Error {startOrStop} stream: {ex.Message}");
+            }
+            finally
+            {
+                IsStreamButtonEnabled = true;
+            }
+        }
+
+        private async Task StartStreaming(string streamName)
+        {
+            await App.Audio.StartBroadcastAsync().ConfigureAwait(true);
+            StartTimer();
+            IsStreaming = true;
+            IsListenerCountVisible = true;
+            Logging.Log($"Now streaming to {streamName}");
+        }
+
+        private void StopStreaming(string streamName)
+        {
+            App.Audio.StopBroadcast();
+            StopTimer();
+            IsStreaming = false;
+            IsListenerCountVisible = false;
+            Logging.Log($"{streamName} stream stopped.");
         }
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (!_disposed && disposing)
             {
-                if (disposing)
-                {
-                    _cts.Cancel();
-                    _streamTimer?.Dispose();
-                    _iceStatsRefresh?.Dispose();
-                    _peakResetTimer?.Dispose(); 
-                    _cts.Dispose();
+                _cts.Cancel();
+                _streamTimer?.Dispose();
+                _iceStatsRefresh?.Dispose();
+                _peakResetTimer?.Dispose();
+                _cts.Dispose();
 
-                    App.Audio.LevelsAvailable -= OnLevelsAvailable;
-                    App.Audio.ClippingDetected -= OnClippingDetected;
+                App.Audio.LevelsAvailable -= OnLevelsAvailable;
+                App.Audio.ClippingDetected -= OnClippingDetected;
+                if (_loggingService != null)
+                    _loggingService.LogLineAdded -= OnLogLineAdded;
 
-                    if (_loggingService != null)
-                        _loggingService.LogLineAdded -= OnLogLineAdded;
-                }
                 _disposed = true;
             }
         }
