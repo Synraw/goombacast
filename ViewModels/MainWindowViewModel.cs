@@ -45,11 +45,11 @@ namespace GoombaCast.ViewModels
         [ObservableProperty] private bool _isStreamButtonEnabled = true;
         [ObservableProperty] private bool _isListenerCountVisible;
 
+        [ObservableProperty] private Thickness _leftPeakPosition = new(5, 0, 0, 0);
+        [ObservableProperty] private Thickness _rightPeakPosition = new(5, 0, 0, 0);
+
         public IAsyncRelayCommand? OpenSettingsCommand { get; private set; }
         public IAsyncRelayCommand? ToggleStreamCommand { get; private set; }
-
-        public Thickness LeftPeakPosition => new(CalculatePeakPosition(LeftPeakDb), 0, 0, 0);
-        public Thickness RightPeakPosition => new(CalculatePeakPosition(RightPeakDb), 0, 0, 0);
 
         public MainWindowViewModel() { }
 
@@ -193,8 +193,11 @@ namespace GoombaCast.ViewModels
             _audioEngine?.SetGainLevel(value);
         }
 
-        partial void OnLeftPeakDbChanged(float value) => OnPropertyChanged(nameof(LeftPeakPosition));
-        partial void OnRightPeakDbChanged(float value) => OnPropertyChanged(nameof(RightPeakPosition));
+        partial void OnLeftPeakDbChanged(float value) 
+            => LeftPeakPosition = new Thickness(CalculatePeakPosition(value), 0, 0, 0);
+
+        partial void OnRightPeakDbChanged(float value)
+            => RightPeakPosition = new Thickness(CalculatePeakPosition(value), 0, 0, 0);
 
         private async Task ToggleStream()
         {
