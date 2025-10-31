@@ -144,7 +144,7 @@
                          FontSize="14"
                          TextAlignment="Center"/>
 
-                <Grid Width="275">
+                <Grid Width="275" Margin="0,-3,0,0">
                     <ProgressBar Height="14"
                                Value="{Binding LeftDb}"
                                Minimum="-90"
@@ -203,12 +203,14 @@
             <!-- Input Gain -->
             <Grid Grid.Row="4"
                   Grid.ColumnSpan="4"
-                  Margin="5"
+                  Margin="5,0"
                   ColumnDefinitions="Auto,*,Auto"
                   RowDefinitions="Auto,Auto">
                 <TextBlock Text="Input Gain"
                          Grid.ColumnSpan="3"
-                         HorizontalAlignment="Center"/>
+                         HorizontalAlignment="Center"
+                         Margin="5,0,5,-10"
+                         />
                 <TextBlock Text="0dB"
                          Grid.Row="1"
                          FontSize="10"
@@ -233,7 +235,7 @@
                      Text="{Binding LogLines}"
                      IsReadOnly="True"
                      TextWrapping="Wrap"
-                     Margin="5"/>
+                     Margin="5,0,5,5"/>
         </Grid>
     </Panel>
 </Window>

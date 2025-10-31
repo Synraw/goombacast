@@ -9,7 +9,6 @@ namespace GoombaCast.Views
 {
     public partial class MainWindow : Window
     {
-        private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
         private double? _logLastOccupiedHeight;
 
         public MainWindow()

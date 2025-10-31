@@ -38,6 +38,7 @@ namespace GoombaCast.ViewModels
         public SettingsWindowViewModel()
         {
             var settings = SettingsService.Default.Settings;
+
             ServerAddress = settings.ServerAddress ?? "http://localhost:8080/";
             StreamName = settings.StreamName ?? "My Local Icecast Stream";
             Username = settings.UserName ?? "user";
