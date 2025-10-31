@@ -7,20 +7,20 @@ namespace GoombaCast.Models.Audio.AudioHandlers
     public sealed class GainAudioHandler : AudioHandler
     {
         // dB gain applied to samples. 0 = unity.
-        private double _gainDb;
-        private double _gainLinear = 1.0;
+        private float _gainDb;
+        private float _gainLinear = 1.0f;
 
         public string FriendlyName => "Gain";
         public int Order { get; init; } = 0;
         public bool Enabled { get; set; } = true;
 
-        public double GainDb
+        public float GainDb
         {
             get => _gainDb;
             set
             {
                 _gainDb = value;
-                _gainLinear = Math.Pow(10.0, _gainDb / 20.0);
+                _gainLinear = MathF.Pow(10.0f, _gainDb / 20.0f);
             }
         }
 

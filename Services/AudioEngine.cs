@@ -14,10 +14,11 @@ namespace GoombaCast.Services
         private readonly GainAudioHandler _gain;
         private readonly LimiterAudioHandler _limiter;
 
-        public void SetGainLevel(double gainDb) 
+        // Change return type and parameter type to float
+        public void SetGainLevel(float gainDb) 
             => _gain.GainDb = gainDb;
 
-        public double GetGainLevel() 
+        public float GetGainLevel() 
             => _gain.GainDb;
 
         // Re-expose levels for view models (already marshalled to UI thread)

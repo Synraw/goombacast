@@ -127,8 +127,8 @@ namespace GoombaCast.ViewModels
             });
         }
 
-        private double CalculatePeakPosition(double peakDb) 
-            => 5 + (peakDb + 90) / 90 * ProgressBarWidth;
+        private float CalculatePeakPosition(float peakDb) 
+            => 5.0f + (peakDb + 90.0f) / 90.0f * ProgressBarWidth;
 
         private void OnLevelsAvailable(float left, float right) 
             => UpdatePeakLevels(left, right);
