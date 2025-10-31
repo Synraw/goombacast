@@ -100,7 +100,7 @@
                                  FontFamily="Cascadia Mono"
                                  FontSize="42"/>
                     </StackPanel>
-                    <TextBlock x:Name="ListenerCountText"
+                    <TextBlock Name="ListenerCountText"
                              Grid.Row="1"
                              Text="{Binding ListenerCount}"
                              IsVisible="{Binding IsListenerCountVisible}"
@@ -113,7 +113,7 @@
             </Border>
 
             <!-- Controls -->
-            <Button x:Name="StreamStopStartButton"
+            <Button Name="StreamStopStartButton"
                     Grid.Row="2"
                     Command="{Binding ToggleStreamCommand}"
                     Content="{Binding IsStreaming, Converter={StaticResource StreamButtonTextConverter}}"
@@ -229,13 +229,14 @@
             </Grid>
 
             <!-- Log Window -->
-            <TextBox x:Name="LogWindow"
+            <TextBox Name="LogWindow"
                      Grid.Row="5"
                      Grid.ColumnSpan="4"
                      Text="{Binding LogLines}"
                      IsReadOnly="True"
                      TextWrapping="Wrap"
-                     Margin="5,0,5,5"/>
+                     Margin="5,0,5,5"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"/>
         </Grid>
     </Panel>
 </Window>

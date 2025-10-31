@@ -50,7 +50,6 @@ namespace GoombaCast.Services
 
             _levelMeter = new LevelMeterAudioHandler
             {
-                // Ensure callbacks fire on the UI thread
                 CallbackContext = uiContext,
                 UseRmsLevels = true,
                 LevelFloorDb = -90f
@@ -109,22 +108,21 @@ namespace GoombaCast.Services
                 _icecastStream.Configure(IcecastStreamConfig.FromSettings(SettingsService.Default));
             }
 
-            await _icecastStream.OpenAsync(ct).ConfigureAwait(false);
+            await _icecastStream.Connect().ConfigureAwait(false);
         }
 
-        public void StopBroadcast()
+        public async Task StopBroadcast()
         {
-            _icecastStream.Disconnect();
+            await _icecastStream.DisconnectAsync();
         }
 
-        // Legacy sync method kept for completeness (unused by UI)
         public void StartBroadcast()
         {
             if (!_icecastStream.IsOpen)
             {
                 _icecastStream.Configure(IcecastStreamConfig.FromSettings(SettingsService.Default));
             }
-            _icecastStream.Connect();
+            _icecastStream.Connect().GetAwaiter().GetResult();
         }
 
         public void SetLimiterEnabled(bool enabled) 

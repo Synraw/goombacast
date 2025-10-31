@@ -73,7 +73,30 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public IcecastStream() { }
 
-        public async Task OpenAsync(CancellationToken ct = default)
+        public async Task Connect() => await OpenAsync();
+        public async Task DisconnectAsync(CancellationToken ct = default)
+        {
+            if (_open && _net != null)
+            {
+                try
+                {
+                    var end = Encoding.ASCII.GetBytes("0\r\n\r\n");
+                    await _net.WriteAsync(end, ct).ConfigureAwait(false);
+                    await _net.FlushAsync(ct).ConfigureAwait(false);
+                }
+                catch { /* ignore */ }
+                finally
+                {
+                    _open = false;
+                    try { await (_net?.DisposeAsync() ?? ValueTask.CompletedTask); } catch { }
+                    try { _tcp?.Close(); } catch { }
+                    _net = null;
+                    _tcp = null;
+                }
+            }
+        }
+
+        private async Task OpenAsync(CancellationToken ct = default)
         {
             if (_open) return;
 
@@ -114,10 +137,6 @@ namespace GoombaCast.Models.Audio.Streaming
             _open = true;
         }
 
-        // TODO: Validate this is the correct thing to do for these two methods
-        public void Connect() => OpenAsync().GetAwaiter().GetResult();
-        public void Disconnect() => Dispose();
-
         public override void Write(byte[] buffer, int offset, int count)
         {
             if (!_open || _net == null) return;
@@ -126,37 +145,27 @@ namespace GoombaCast.Models.Audio.Streaming
             _net.Flush();
         }
 
-        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             if (!_open || _net == null) return;
-            await _net.WriteAsync(buffer, offset, count, ct).ConfigureAwait(false);
+            await _net.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
         }
 
         public override void Flush() { /* nothing; we flush per chunk */ }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await DisconnectAsync().ConfigureAwait(false);
+            await base.DisposeAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
+        }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                try
-                {
-                    if (_open && _net != null)
-                    {
-                        var end = Encoding.ASCII.GetBytes("0\r\n\r\n");
-                        _net.Write(end, 0, end.Length);
-                        _net.Flush();
-                    }
-                }
-                catch { /* ignore */ }
-                finally
-                {
-                    _open = false;
-                    try { _net?.Dispose(); } catch { }
-                    try { _tcp?.Close(); } catch { }
-                    _net = null; _tcp = null;
-                }
+                DisconnectAsync().GetAwaiter().GetResult();
             }
-
             base.Dispose(disposing);
         }
 

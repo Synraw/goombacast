@@ -1,7 +1,10 @@
 ﻿using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GoombaCast.Extensions;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
 using System;
@@ -35,12 +38,12 @@ namespace GoombaCast.ViewModels
         [ObservableProperty] private float _rightDb;
         [ObservableProperty] private bool _isClipping;
         [ObservableProperty] private int _volumeLevel;
-        
+
         [ObservableProperty] private string _windowTitle = "GoombaCast: (Design Time)";
         [ObservableProperty] private string _logLines = string.Empty;
         [ObservableProperty] private string _streamingTime = "00:00:00";
         [ObservableProperty] private string _listenerCount = "Listeners: N/A";
-        
+
         [ObservableProperty] private bool _isStreaming;
         [ObservableProperty] private bool _isStreamButtonEnabled = true;
         [ObservableProperty] private bool _isListenerCountVisible;
@@ -127,16 +130,16 @@ namespace GoombaCast.ViewModels
             });
         }
 
-        private float CalculatePeakPosition(float peakDb) 
+        private float CalculatePeakPosition(float peakDb)
             => 5.0f + (peakDb + 90.0f) / 90.0f * ProgressBarWidth;
 
-        private void OnLevelsAvailable(float left, float right) 
+        private void OnLevelsAvailable(float left, float right)
             => UpdatePeakLevels(left, right);
-        
-        private void OnPeakUpdateTimerElapsed(object? sender, ElapsedEventArgs e) 
+
+        private void OnPeakUpdateTimerElapsed(object? sender, ElapsedEventArgs e)
             => UpdatePeakFalloff((PeakFallRate * UpdateInterval) / 1000.0f);
 
-        private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e) 
+        private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e)
             => StreamingTime = $"{(DateTime.Now - _streamStartTime):hh\\:mm\\:ss}";
 
         private async void OnIceStatsRefreshElapsed(object? sender, ElapsedEventArgs e)
@@ -146,19 +149,29 @@ namespace GoombaCast.ViewModels
             ListenerCount = $"Listeners: {icestats?.GetListenerCount()}";
         }
 
-        private void OnClippingDetected(bool isClipping) 
+        private void OnClippingDetected(bool isClipping)
             => IsClipping = isClipping;
-        
-        private void OnLogLineAdded(object? sender, string message) 
+
+        private void OnLogLineAdded(object? sender, string message)
             => WriteLineToLog(message);
 
         public void WriteLineToLog(string message)
         {
-            if (!string.IsNullOrEmpty(message))
-                LogLines += $"{message}\n";
+            if (string.IsNullOrEmpty(message)) return;
+            
+            LogLines += $"{message}\n";
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    var logWindow = desktop.MainWindow?.FindControl<TextBox>("LogWindow");
+                    logWindow?.ScrollToEnd();
+                }
+            }, DispatcherPriority.Background);
         }
 
-        public void UpdateWindowTitle(string streamName) 
+        public void UpdateWindowTitle(string streamName)
             => WindowTitle = string.IsNullOrEmpty(streamName) ? "GoombaCast" : $"GoombaCast: {streamName}";
 
         private void StartTimer()
@@ -196,7 +209,7 @@ namespace GoombaCast.ViewModels
             _audioEngine?.SetGainLevel(value);
         }
 
-        partial void OnLeftPeakDbChanged(float value) 
+        partial void OnLeftPeakDbChanged(float value)
             => LeftPeakPosition = new Thickness(CalculatePeakPosition(value), 0, 0, 0);
 
         partial void OnRightPeakDbChanged(float value)
@@ -215,7 +228,7 @@ namespace GoombaCast.ViewModels
                 }
                 else
                 {
-                    StopStreaming(settings.StreamName);
+                    await StopStreaming(settings.StreamName).ConfigureAwait(true);
                 }
             }
             catch (Exception ex)
@@ -238,9 +251,9 @@ namespace GoombaCast.ViewModels
             Logging.Log($"Now streaming to {streamName}");
         }
 
-        private void StopStreaming(string streamName)
+        private async Task StopStreaming(string streamName)
         {
-            App.Audio.StopBroadcast();
+            await App.Audio.StopBroadcast();
             StopTimer();
             IsStreaming = false;
             IsListenerCountVisible = false;
