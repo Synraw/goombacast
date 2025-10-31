@@ -1,72 +1,130 @@
 <Window xmlns="https://github.com/avaloniaui"
-		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-		xmlns:vm="using:GoombaCast.ViewModels"
-		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-		mc:Ignorable="d"
-		x:Class="GoombaCast.Views.SettingsWindow"
-		x:DataType="vm:SettingsWindowViewModel"
-		Width="500" Height="450"
-		Icon="/Assets/goomba-logo.ico"
-		Title="GoombaCast Settings"
-		CanResize="False"
-		TransparencyLevelHint="AcrylicBlur"
-		Background="Transparent"
-		ExtendClientAreaToDecorationsHint="True"
-		WindowStartupLocation="CenterOwner">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GoombaCast.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="GoombaCast.Views.SettingsWindow"
+        x:DataType="vm:SettingsWindowViewModel"
+        MinWidth="550" MinHeight="500"
+        MaxWidth="800" MaxHeight="900"
+        SizeToContent="WidthAndHeight"
+        Icon="/Assets/goomba-logo.ico"
+        Title="GoombaCast Settings"
+        TransparencyLevelHint="AcrylicBlur"
+        Background="Transparent"
+        ExtendClientAreaToDecorationsHint="True"
+        WindowStartupLocation="CenterOwner">
 
-	<Design.DataContext>
-		<vm:SettingsWindowViewModel/>
-	</Design.DataContext>
+    <Design.DataContext>
+        <vm:SettingsWindowViewModel/>
+    </Design.DataContext>
 
-	<Panel>
-		<ExperimentalAcrylicBorder IsHitTestVisible="False">
-			<ExperimentalAcrylicBorder.Material>
-				<ExperimentalAcrylicMaterial
-				BackgroundSource="Digger"
-				TintColor="Black"
-				TintOpacity="1"
-				MaterialOpacity="0.65" />
-			</ExperimentalAcrylicBorder.Material>
-		</ExperimentalAcrylicBorder>
+    <Panel>
+        <ExperimentalAcrylicBorder IsHitTestVisible="False">
+            <ExperimentalAcrylicBorder.Material>
+                <ExperimentalAcrylicMaterial
+                    BackgroundSource="Digger"
+                    TintColor="Black"
+                    TintOpacity="1"
+                    MaterialOpacity="0.65" />
+            </ExperimentalAcrylicBorder.Material>
+        </ExperimentalAcrylicBorder>
 
-		<Image Source="/Assets/goomba-logo.ico" Width="32" Height="32" Margin="5"
-			   IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top" />
+        <DockPanel Margin="20">
+            <!-- Header -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" Margin="0,0,0,20">
+                <Image Source="/Assets/goomba-logo.ico" Width="40" Height="40"
+                       IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="Settings" FontSize="24" FontWeight="Light"
+                          Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Grid>
 
-		<Grid ShowGridLines="False" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,*">
-			<TextBlock Grid.ColumnSpan="4" Text="Settings" Margin="10" FontSize="18" Foreground="White"
-					   HorizontalAlignment="Center" IsHitTestVisible="False"
-					   VerticalAlignment="Top" />
+            <!-- Main Content -->
+            <TabControl>
+                <TabItem Header="Audio" FontSize="16">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="20" Spacing="25" MaxWidth="700">
+                            <!-- Input Section -->
+                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="15">
+                                    <TextBlock Text="INPUT DEVICE" Foreground="#99FFFFFF" 
+                                             FontSize="12" FontWeight="SemiBold"/>
+                                    <ComboBox HorizontalAlignment="Stretch"
+                                            ItemsSource="{Binding AvailableMicrophones}"
+                                            SelectedItem="{Binding SelectedMicrophone}"/>
+                                </StackPanel>
+                            </Border>
 
-			<TabControl Margin="5" Grid.Row="1" Grid.ColumnSpan="3">
-				<TabItem Header="Audio" FontSize="18" >
-					<StackPanel Grid.Row="1"  Margin="10" Spacing="10"
-								Orientation="Horizontal" HorizontalAlignment="Center">
-						<TextBlock Text="Microphone:" Foreground="White" VerticalAlignment="Center"/>
-						<ComboBox Width="250"
-								  ItemsSource="{Binding AvailableMicrophones}"
-								  SelectedItem="{Binding SelectedMicrophone}"/>
-					</StackPanel>
-				</TabItem>
+                            <!-- Limiter Section -->
+                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="15">
+                                    <TextBlock Text="AUDIO LIMITER" Foreground="#99FFFFFF" 
+                                             FontSize="12" FontWeight="SemiBold"/>
+                                    <CheckBox Content="Enable Limiter" IsChecked="{Binding LimiterEnabled}"
+                                            Foreground="White"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto">
+                                        <TextBlock Text="Threshold" Foreground="White" 
+                                                 VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="1" Margin="15,0"
+                                                    Value="{Binding LimiterThreshold}"
+                                                    Minimum="-60" Maximum="0"
+                                                    Increment="1"
+                                                    Width="120"
+                                                    ToolTip.Tip="Limiter threshold in dB"/>
+                                        <TextBlock Grid.Column="2" Text="dB" Foreground="White" 
+                                                 VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
 
-				<TabItem Header="Server" FontSize="18">
-					<Grid ShowGridLines="False" RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
-						<TextBlock Text="Server Address:" Foreground="White" VerticalAlignment="Center" Margin="10"/>
-						<TextBox Grid.Column="1" Width="250" Margin="10"
-								 Text="{Binding ServerAddress}"
-								 ToolTip.Tip="Enter the server address (e.g., https://example.com:8080/web.mp3)"/>
-						<TextBlock Grid.Row="1" Text="Username:" Foreground="White" VerticalAlignment="Center" Margin="10"/>
-						<TextBox Grid.Row="1" Grid.Column="1" Width="250" Margin="10" Text="{Binding Username}"/>
-						<TextBlock Grid.Row="2" Text="Password:" Foreground="White" VerticalAlignment="Center" Margin="10"/>
-						<TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Password}" Width="250" Margin="10"
-								 PasswordChar="*" />
-						<TextBlock Grid.Row="3" Text="Stream Name" Foreground="White" VerticalAlignment="Center" Margin="10"/>
-						<TextBox Grid.Row="3" Grid.Column="1" Width="250" Margin="10"
-								 Text="{Binding StreamName}"
-								 ToolTip.Tip="Enter the stream name (e.g., My Local Icecast Stream)"/>
-					</Grid>
-				</TabItem>
-			</TabControl>
-		</Grid>
-	</Panel>
+                <TabItem Header="Server" FontSize="16">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="20" Spacing="25" MaxWidth="700">
+                            <!-- Connection Settings -->
+                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="15">
+                                    <TextBlock Text="SERVER CONNECTION" Foreground="#99FFFFFF" 
+                                             FontSize="12" FontWeight="SemiBold"/>
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Server Address" Foreground="White"/>
+                                        <TextBox Text="{Binding ServerAddress}"
+                                                ToolTip.Tip="Enter the server address (e.g., https://example.com:8080/web.mp3)"/>
+                                    </StackPanel>
+                                    
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Username" Foreground="White"/>
+                                        <TextBox Text="{Binding Username}"/>
+                                    </StackPanel>
+                                    
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Password" Foreground="White"/>
+                                        <TextBox Text="{Binding Password}" PasswordChar="*"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Stream Settings -->
+                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="15">
+                                    <TextBlock Text="STREAM SETTINGS" Foreground="#99FFFFFF" 
+                                             FontSize="12" FontWeight="SemiBold"/>
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Stream Name" Foreground="White"/>
+                                        <TextBox Text="{Binding StreamName}"
+                                                ToolTip.Tip="Enter the stream name (e.g., My Local Icecast Stream)"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+        </DockPanel>
+    </Panel>
 </Window>

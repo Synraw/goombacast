@@ -29,6 +29,12 @@ namespace GoombaCast.ViewModels
         [ObservableProperty]
         private string _password;
 
+        [ObservableProperty]
+        private bool _limiterEnabled;
+
+        [ObservableProperty]
+        private float _limiterThreshold;
+
         public SettingsWindowViewModel()
         {
             var settings = SettingsService.Default.Settings;
@@ -36,6 +42,9 @@ namespace GoombaCast.ViewModels
             StreamName = settings.StreamName ?? "My Local Icecast Stream";
             Username = settings.UserName ?? "user";
             Password = settings.Password ?? "password";
+
+            LimiterEnabled = settings.LimiterEnabled;
+            LimiterThreshold = settings.LimiterThreshold;
 
             var devices = InputDevice.GetActiveInputDevices();
             AvailableMicrophones = new ObservableCollection<InputDevice>(devices);
@@ -71,6 +80,12 @@ namespace GoombaCast.ViewModels
                 case nameof(StreamName):
                     settings.StreamName = StreamName;
                     StreamNameChanged?.Invoke(this, StreamName);
+                    break;
+                case nameof(LimiterEnabled):
+                    settings.LimiterEnabled = LimiterEnabled;
+                    break;
+                case nameof(LimiterThreshold):
+                    settings.LimiterThreshold = LimiterThreshold;
                     break;
             }
             

@@ -36,7 +36,7 @@ namespace GoombaCast.ViewModels
         [ObservableProperty] private bool _isClipping;
         [ObservableProperty] private int _volumeLevel;
         
-        [ObservableProperty] private string _windowTitle = "GoombaCast (Design Time)";
+        [ObservableProperty] private string _windowTitle = "GoombaCast: (Design Time)";
         [ObservableProperty] private string _logLines = string.Empty;
         [ObservableProperty] private string _streamingTime = "00:00:00";
         [ObservableProperty] private string _listenerCount = "Listeners: N/A";
@@ -128,9 +128,10 @@ namespace GoombaCast.ViewModels
         }
 
         private double CalculatePeakPosition(double peakDb) 
-            => 5 + ((peakDb + 90) / 90) * ProgressBarWidth;
+            => 5 + (peakDb + 90) / 90 * ProgressBarWidth;
 
-        private void OnLevelsAvailable(float left, float right) => UpdatePeakLevels(left, right);
+        private void OnLevelsAvailable(float left, float right) 
+            => UpdatePeakLevels(left, right);
         
         private void OnPeakUpdateTimerElapsed(object? sender, ElapsedEventArgs e) 
             => UpdatePeakFalloff((PeakFallRate * UpdateInterval) / 1000.0f);
@@ -145,9 +146,11 @@ namespace GoombaCast.ViewModels
             ListenerCount = $"Listeners: {icestats?.GetListenerCount()}";
         }
 
-        private void OnClippingDetected(bool isClipping) => IsClipping = isClipping;
+        private void OnClippingDetected(bool isClipping) 
+            => IsClipping = isClipping;
         
-        private void OnLogLineAdded(object? sender, string message) => WriteLineToLog(message);
+        private void OnLogLineAdded(object? sender, string message) 
+            => WriteLineToLog(message);
 
         public void WriteLineToLog(string message)
         {

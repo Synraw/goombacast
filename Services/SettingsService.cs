@@ -26,6 +26,12 @@ namespace GoombaCast.Services
 
         [JsonPropertyName("password")]
         public string Password { get; set; } = "hackme";
+        
+        [JsonPropertyName("limiterEnabled")]
+        public bool LimiterEnabled { get; set; } = true;
+
+        [JsonPropertyName("limiterThreshold")]
+        public float LimiterThreshold { get; set; } = -3.0f;
 
         // Add validation methods
         public bool IsValid()
@@ -189,10 +195,7 @@ namespace GoombaCast.Services
 
         private void ThrowIfDisposed()
         {
-            if (_isDisposed)
-            {
-                throw new ObjectDisposedException(nameof(SettingsService));
-            }
+            ObjectDisposedException.ThrowIf(_isDisposed, nameof(SettingsService));
         }
 
         public void Dispose()

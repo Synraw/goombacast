@@ -91,7 +91,7 @@
                               VerticalAlignment="Center">
                         <TextBlock Text="Stream Time:"
                                  Foreground="White"
-                                 Margin="10"
+                                 Margin="10,5,5,5"
                                  FontSize="42"
                                  FontFamily="Cascadia Mono"/>
                         <TextBlock Text="{Binding StreamingTime}"
@@ -108,7 +108,7 @@
                              FontFamily="Cascadia Mono"
                              FontSize="14"
                              HorizontalAlignment="Center"
-                             Margin="5"/>
+                             Margin="5,-20,0,5"/>
                 </Grid>
             </Border>
 
@@ -142,8 +142,7 @@
                       Spacing="5">
                 <TextBlock Text="Stream Volume"
                          FontSize="14"
-                         TextAlignment="Center"
-                         Margin=""/>
+                         TextAlignment="Center"/>
 
                 <Grid Width="275">
                     <ProgressBar Height="14"
@@ -194,6 +193,7 @@
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center"/>
                 <Button x:Name="LogHideShowButton"
+                        Margin="0,5,0,0"
                         Content="Hide Log"
                         Click="ButtonClickToggleLog"
                         HorizontalAlignment="Stretch"

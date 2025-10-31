@@ -44,13 +44,13 @@ namespace GoombaCast.Models.Audio.Streaming
         private InputDevice? inputDevice = device ?? InputDevice.GetActiveInputDevices().FirstOrDefault();
         private volatile bool _running;
 
-        private readonly WaveFormat _waveFormat = new WaveFormat(48000, 16, 2);
+        private readonly WaveFormat _waveFormat = new(48000, 16, 2);
         private volatile bool _deviceSwitchInProgress;
 
         private readonly object _micLock = new();
 
         private readonly object _handlerLock = new();
-        private AudioHandler[] _handlerSnapshot = Array.Empty<AudioHandler>();
+        private AudioHandler[] _handlerSnapshot = [];
 
         public InputDevice? CurrentInputDevice => inputDevice;
 

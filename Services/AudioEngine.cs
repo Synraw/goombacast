@@ -12,6 +12,7 @@ namespace GoombaCast.Services
         private readonly MicrophoneStream _micStream;
         private readonly LevelMeterAudioHandler _levelMeter;
         private readonly GainAudioHandler _gain;
+        private readonly LimiterAudioHandler _limiter;
 
         public void SetGainLevel(double gainDb) 
             => _gain.GainDb = gainDb;
@@ -63,6 +64,12 @@ namespace GoombaCast.Services
                 GainDb = settings.VolumeLevel
             };
 
+            _limiter = new LimiterAudioHandler
+            {
+                Enabled = settings.LimiterEnabled,
+                ThresholdDb = settings.LimiterThreshold
+            };
+
             var inputDeviceId = SettingsService.Default.Settings.InputDeviceId;
             InputDevice? device = null;
             if (inputDeviceId is not null)
@@ -73,6 +80,7 @@ namespace GoombaCast.Services
             _micStream = new MicrophoneStream(_icecastStream, device);
             _micStream.AddAudioHandler(_gain);
             _micStream.AddAudioHandler(_levelMeter);
+            _micStream.AddAudioHandler(_limiter);
         }
 
         public bool ChangeInputDevice(string deviceId)
@@ -119,6 +127,12 @@ namespace GoombaCast.Services
             }
             _icecastStream.Connect();
         }
+
+        public void SetLimiterEnabled(bool enabled) 
+            => _limiter.Enabled = enabled;
+
+        public void SetLimiterThreshold(float thresholdDb) 
+            => _limiter.ThresholdDb = thresholdDb;
 
         public void Dispose() => _micStream.Dispose();
     }

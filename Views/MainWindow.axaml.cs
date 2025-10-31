@@ -36,7 +36,5 @@ namespace GoombaCast.Views
                 LogWindow.IsVisible = true;
             }
         }
-
-
     }
 }
