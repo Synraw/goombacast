@@ -15,47 +15,73 @@ using Timer = System.Timers.Timer;
 
 namespace GoombaCast.ViewModels
 {
+    /// <summary>
+    /// ViewModel for the main window of GoombaCast, handling audio streaming controls, metering, and UI state.
+    /// </summary>
     public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
-        private const float PeakFallRate = 15.0f;
-        private const float UpdateInterval = 50.0f;
-        private const float ProgressBarWidth = 275.0f;
+        // Meter display and update constants
+        private const float PeakFallRate = 15.0f;        // Rate at which peak indicators fall (dB/sec)
+        private const float PeakUpdateInterval = 50.0f;   // Update interval for peak meters (ms)
+        private const float ProgressBarWidth = 275.0f;    // Width of the VU meter progress bars
 
+        // Timer intervals in milliseconds
+        private const int PeakTimerInterval = (int)PeakUpdateInterval;
+        private const int IceStatsTimerInterval = 500;    // Icecast stats refresh rate
+        private const int StreamingTimerInterval = 500;   // Streaming time display update rate
+
+        // Dependency-injected services
         private readonly IDialogService? _dialogService;
         private readonly AudioEngine? _audioEngine;
         private readonly ILoggingService? _loggingService;
         private readonly CancellationTokenSource _cts = new();
         private bool _disposed;
 
+        // Streaming state
         private DateTime _streamStartTime;
-        private Timer? _streamTimer;
-        private Timer? _iceStatsRefresh;
-        private Timer? _peakResetTimer;
+        private Timer? _streamTimer;        // Updates streaming duration display
+        private Timer? _iceStatsRefresh;    // Updates Icecast listener count
+        private Timer? _peakResetTimer;     // Controls peak meter falloff
 
-        [ObservableProperty] private float _leftPeakDb = -90;
-        [ObservableProperty] private float _rightPeakDb = -90;
-        [ObservableProperty] private float _leftDb;
-        [ObservableProperty] private float _rightDb;
-        [ObservableProperty] private bool _isClipping;
-        [ObservableProperty] private int _volumeLevel;
+        // Observable audio metering properties
+        [ObservableProperty] private float _leftPeakDb = -90;     // Left channel peak hold
+        [ObservableProperty] private float _rightPeakDb = -90;    // Right channel peak hold
+        [ObservableProperty] private float _leftDb;               // Left channel current level
+        [ObservableProperty] private float _rightDb;              // Right channel current level
+        [ObservableProperty] private bool _isClipping;            // Audio clipping indicator
+        [ObservableProperty] private int _volumeLevel;            // Input gain control
 
+        // Observable UI state properties
         [ObservableProperty] private string _windowTitle = "GoombaCast: (Design Time)";
         [ObservableProperty] private string _logLines = string.Empty;
         [ObservableProperty] private string _streamingTime = "00:00:00";
         [ObservableProperty] private string _listenerCount = "Listeners: N/A";
 
+        // Observable streaming state properties
         [ObservableProperty] private bool _isStreaming;
         [ObservableProperty] private bool _isStreamButtonEnabled = true;
         [ObservableProperty] private bool _isListenerCountVisible;
 
+        // Observable peak meter UI positions
         [ObservableProperty] private Thickness _leftPeakPosition = new(5, 0, 0, 0);
         [ObservableProperty] private Thickness _rightPeakPosition = new(5, 0, 0, 0);
 
+        // Commands
         public IAsyncRelayCommand? OpenSettingsCommand { get; private set; }
         public IAsyncRelayCommand? ToggleStreamCommand { get; private set; }
 
+        /// <summary>
+        /// Default constructor for design-time use
+        /// </summary>
         public MainWindowViewModel() { }
 
+        /// <summary>
+        /// Initializes a new instance of the MainWindowViewModel with required services
+        /// </summary>
+        /// <param name="audioEngine">The audio engine service for stream handling</param>
+        /// <param name="dialogService">The dialog service for showing windows</param>
+        /// <param name="loggingService">The logging service for application events</param>
+        /// <exception cref="ArgumentNullException">Thrown if any required service is null</exception>
         public MainWindowViewModel(AudioEngine audioEngine, IDialogService dialogService, ILoggingService loggingService)
         {
             _audioEngine = audioEngine ?? throw new ArgumentNullException(nameof(audioEngine));
@@ -69,6 +95,9 @@ namespace GoombaCast.ViewModels
             ScanInputDevices();
         }
 
+        /// <summary>
+        /// Initializes view model properties from settings
+        /// </summary>
         private void InitializeViewModel()
         {
             var settings = SettingsService.Default.Settings;
@@ -76,12 +105,18 @@ namespace GoombaCast.ViewModels
             WindowTitle = $"GoombaCast: {settings.StreamName}";
         }
 
+        /// <summary>
+        /// Sets up command bindings for UI interactions
+        /// </summary>
         private void SetupCommands()
         {
             OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
             ToggleStreamCommand = new AsyncRelayCommand(ToggleStream);
         }
 
+        /// <summary>
+        /// Sets up event handlers for audio engine and logging events
+        /// </summary>
         private void SetupEventHandlers()
         {
             App.Audio.LevelsAvailable += OnLevelsAvailable;
@@ -93,13 +128,19 @@ namespace GoombaCast.ViewModels
             VolumeLevel = (int)App.Audio.GetGainLevel();
         }
 
+        /// <summary>
+        /// Initializes timers for UI updates
+        /// </summary>
         private void InitializeTimers()
         {
-            _streamTimer = CreateTimer(500, OnStreamTimerElapsed);
-            _iceStatsRefresh = CreateTimer(500, OnIceStatsRefreshElapsed, true);
-            _peakResetTimer = CreateTimer(UpdateInterval, OnPeakUpdateTimerElapsed, true);
+            _streamTimer = CreateTimer(StreamingTimerInterval, OnStreamTimerElapsed);
+            _iceStatsRefresh = CreateTimer(IceStatsTimerInterval, OnIceStatsRefreshElapsed, true);
+            _peakResetTimer = CreateTimer(PeakTimerInterval, OnPeakUpdateTimerElapsed, true);
         }
 
+        /// <summary>
+        /// Creates and configures a timer with specified parameters
+        /// </summary>
         private Timer CreateTimer(double interval, ElapsedEventHandler handler, bool startImmediately = false)
         {
             var timer = new Timer(interval) { AutoReset = true };
@@ -108,6 +149,9 @@ namespace GoombaCast.ViewModels
             return timer;
         }
 
+        /// <summary>
+        /// Updates the peak level meters with new audio levels
+        /// </summary>
         private void UpdatePeakLevels(float leftDb, float rightDb)
         {
             Dispatcher.UIThread.Post(() =>
@@ -119,6 +163,9 @@ namespace GoombaCast.ViewModels
             });
         }
 
+        /// <summary>
+        /// Updates the peak falloff animation
+        /// </summary>
         private void UpdatePeakFalloff(float decreaseAmount)
         {
             Dispatcher.UIThread.Post(() =>
@@ -130,14 +177,18 @@ namespace GoombaCast.ViewModels
             });
         }
 
+        /// <summary>
+        /// Calculates the position of the peak indicator on the VU meter
+        /// </summary>
         private float CalculatePeakPosition(float peakDb)
             => 5.0f + (peakDb + 90.0f) / 90.0f * ProgressBarWidth;
 
+        // Event handlers
         private void OnLevelsAvailable(float left, float right)
             => UpdatePeakLevels(left, right);
 
         private void OnPeakUpdateTimerElapsed(object? sender, ElapsedEventArgs e)
-            => UpdatePeakFalloff((PeakFallRate * UpdateInterval) / 1000.0f);
+            => UpdatePeakFalloff((PeakFallRate * PeakUpdateInterval) / 1000.0f);
 
         private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e)
             => StreamingTime = $"{(DateTime.Now - _streamStartTime):hh\\:mm\\:ss}";
@@ -155,6 +206,9 @@ namespace GoombaCast.ViewModels
         private void OnLogLineAdded(object? sender, string message)
             => WriteLineToLog(message);
 
+        /// <summary>
+        /// Adds a message to the log window and scrolls to the bottom
+        /// </summary>
         public void WriteLineToLog(string message)
         {
             if (string.IsNullOrEmpty(message)) return;
@@ -171,33 +225,49 @@ namespace GoombaCast.ViewModels
             }, DispatcherPriority.Background);
         }
 
+        /// <summary>
+        /// Updates the window title with the stream name
+        /// </summary>
         public void UpdateWindowTitle(string streamName)
             => WindowTitle = string.IsNullOrEmpty(streamName) ? "GoombaCast" : $"GoombaCast: {streamName}";
 
+        /// <summary>
+        /// Starts the streaming timer
+        /// </summary>
         private void StartTimer()
         {
             _streamStartTime = DateTime.Now;
             _streamTimer?.Start();
         }
 
+        /// <summary>
+        /// Stops the streaming timer
+        /// </summary>
         private void StopTimer()
         {
             _streamTimer?.Stop();
             StreamingTime = "00:00:00";
         }
 
+        /// <summary>
+        /// Scans and logs available input devices
+        /// </summary>
         private void ScanInputDevices()
         {
             foreach (var device in InputDevice.GetActiveInputDevices())
                 Logging.Log($"Found input device: {device}");
         }
 
+        /// <summary>
+        /// Opens the settings dialog
+        /// </summary>
         private async Task OpenSettingsAsync()
         {
             if (_dialogService != null)
                 await _dialogService.ShowSettingsDialogAsync().ConfigureAwait(false);
         }
 
+        // Generated property change handlers
         partial void OnVolumeLevelChanged(int value)
         {
             var settings = SettingsService.Default.Settings;
@@ -215,6 +285,9 @@ namespace GoombaCast.ViewModels
         partial void OnRightPeakDbChanged(float value)
             => RightPeakPosition = new Thickness(CalculatePeakPosition(value), 0, 0, 0);
 
+        /// <summary>
+        /// Toggles the streaming state between starting and stopping
+        /// </summary>
         private async Task ToggleStream()
         {
             var settings = SettingsService.Default.Settings;
@@ -242,6 +315,9 @@ namespace GoombaCast.ViewModels
             }
         }
 
+        /// <summary>
+        /// Starts the audio stream
+        /// </summary>
         private async Task StartStreaming(string streamName)
         {
             await App.Audio.StartBroadcastAsync().ConfigureAwait(true);
@@ -251,6 +327,9 @@ namespace GoombaCast.ViewModels
             Logging.Log($"Now streaming to {streamName}");
         }
 
+        /// <summary>
+        /// Stops the audio stream
+        /// </summary>
         private async Task StopStreaming(string streamName)
         {
             await App.Audio.StopBroadcast();
@@ -260,6 +339,9 @@ namespace GoombaCast.ViewModels
             Logging.Log($"{streamName} stream stopped.");
         }
 
+        /// <summary>
+        /// Disposes of managed resources
+        /// </summary>
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposed && disposing)
@@ -279,6 +361,9 @@ namespace GoombaCast.ViewModels
             }
         }
 
+        /// <summary>
+        /// Implements IDisposable
+        /// </summary>
         public void Dispose()
         {
             Dispose(disposing: true);

@@ -1,8 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Media;
-using GoombaCast.Services;
-using GoombaCast.ViewModels;
+using GoombaCast.Extensions;
 using System;
 
 namespace GoombaCast.Views
@@ -33,6 +31,7 @@ namespace GoombaCast.Views
                     Height += delta;
                 LogHideShowButton.Content = "Hide Log";
                 LogWindow.IsVisible = true;
+                LogWindow.ScrollToEnd();
             }
         }
     }
