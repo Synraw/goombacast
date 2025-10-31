@@ -6,12 +6,13 @@ namespace GoombaCast.Models.Audio.AudioHandlers
     // In-place gain (pre-encoder). Assumes 16-bit PCM.
     public sealed class GainAudioHandler : AudioHandler
     {
-        public int Order { get; init; } = 0;
-        public bool Enabled { get; set; } = true;
-
         // dB gain applied to samples. 0 = unity.
         private double _gainDb;
         private double _gainLinear = 1.0;
+
+        public string FriendlyName => "Gain";
+        public int Order { get; init; } = 0;
+        public bool Enabled { get; set; } = true;
 
         public double GainDb
         {

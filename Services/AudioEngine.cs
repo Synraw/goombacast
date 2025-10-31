@@ -88,18 +88,16 @@ namespace GoombaCast.Services
             var device = FindInputDevice(deviceId);
             if (device is not null)
             {
-                _micStream.SetInputDevice(device);
-                return true;
+                return _micStream.SetInputDevice(device);
             }
             return false;
         }
 
-        public void Start()
-        {
-            _micStream.Start();
-        }
-
-        public void Stop() => _micStream.Stop();
+        public void Start() 
+            => _micStream.Start();
+        
+        public void Stop() 
+            => _micStream.Stop();
 
         public bool IsBroadcasting => _icecastStream.IsOpen;
 

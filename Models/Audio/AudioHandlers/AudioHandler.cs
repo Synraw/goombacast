@@ -7,6 +7,9 @@ namespace GoombaCast.Models.Audio.AudioHandlers
     // Called on the audio capture thread; keep work lightweight.
     public interface AudioHandler
     {
+        // Friendly name for logging/debugging.
+        string FriendlyName { get; }
+
         // Processing order; lower runs earlier. Default = 0.
         int Order => 0;
 

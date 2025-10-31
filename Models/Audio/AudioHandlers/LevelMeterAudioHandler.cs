@@ -19,6 +19,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
         private int _clippingThresholdValue = (int)(MaxInt16Value * DefaultClippingThreshold);
         private readonly object _syncLock = new();
 
+        public string FriendlyName => "Level Meter";
         public int Order { get; init; } = 100;
         public bool Enabled { get; set; } = true;
         public bool UseRmsLevels { get; set; } = true;

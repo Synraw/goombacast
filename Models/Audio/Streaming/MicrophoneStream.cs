@@ -56,43 +56,79 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public void Start()
         {
-            if (_running) return;
-
             lock (_micLock)
             {
-                if (_iceStream == null) throw new InvalidOperationException("IcecastStream not initialized");
+                if (_running) return;
+                
+                if (_iceStream == null) 
+                    throw new InvalidOperationException("IcecastStream not initialized");
 
-                _mp3Writer = new LameMP3FileWriter(_iceStream, _waveFormat, 320);
-                CreateAndStartMic(notifyHandlers: true);
-                _running = true;
+                try 
+                {
+                    _mp3Writer = new LameMP3FileWriter(_iceStream, _waveFormat, 320);
+                    CreateAndStartMic(notifyHandlers: true);
+                    _running = true;
+                }
+                catch 
+                {
+                    // Cleanup on failure
+                    _mp3Writer?.Dispose();
+                    _mp3Writer = null;
+                    throw;
+                }
             }
         }
 
         public void Stop()
         {
-            if (!_running) return;
-
             lock (_micLock)
             {
+                if (!_running) return;
                 _running = false;
 
-                try { _mic?.StopRecording(); } catch { /* ignore */ }
-
-                // Notify handlers capture is stopping
                 var handlers = _handlerSnapshot;
-                foreach (var h in handlers)
-                    h.OnStop();
 
-                _mic?.Dispose(); 
-                _mic = null;
-                _mp3Writer?.Dispose(); 
-                _mp3Writer = null;
-                _iceStream?.Dispose(); 
-                _iceStream = null;
+                try
+                {
+                    if (_mic != null)
+                    {
+                        try 
+                        { 
+                            _mic.StopRecording(); 
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.Log($"Error stopping recording: {ex.Message}");
+                        }
+                        _mic.Dispose();
+                        _mic = null;
+                    }
+                }
+                finally
+                {
+                    foreach (var h in handlers)
+                    {
+                        try
+                        {
+                            h.OnStop();
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.Log($"Error in handler OnStop: {ex.Message}");
+                        }
+                    }
+
+                    _mp3Writer?.Dispose();
+                    _mp3Writer = null;
+                    
+                    _iceStream?.Dispose();
+                    _iceStream = null;
+                }
             }
         }
 
-        public void Dispose() => Stop();
+        public void Dispose() 
+            => Stop();
 
         public bool SelectInputDevice(string deviceId)
         {
@@ -119,7 +155,6 @@ namespace GoombaCast.Models.Audio.Streaming
             return true;
         }
 
-        // Add/remove handlers. Safe to call before or during capture.
         public void AddAudioHandler(AudioHandler handler)
         {
             ArgumentNullException.ThrowIfNull(handler);
@@ -231,12 +266,15 @@ namespace GoombaCast.Models.Audio.Streaming
         {
             try
             {
-                try { _mic?.StopRecording(); } catch { /* ignore */ }
-                _mic?.Dispose();
-                _mic = null;
+                lock (_micLock)
+                {
+                    try { _mic?.StopRecording(); } catch { /* ignore */ }
+                    _mic?.Dispose();
+                    _mic = null;
 
-                // Keep MP3 writer and Icecast stream alive; just swap the input device
-                CreateAndStartMic(notifyHandlers: false);
+                    // Keep MP3 writer and Icecast stream alive; just swap the input device
+                    CreateAndStartMic(notifyHandlers: false);
+                }
             }
             finally
             {

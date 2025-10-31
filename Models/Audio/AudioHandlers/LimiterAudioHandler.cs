@@ -10,6 +10,8 @@ namespace GoombaCast.Models.Audio.AudioHandlers
         private float[] _buffer = new float[4096];
         private const int MaxInt16Value = 32768; // 2^15
 
+        public string FriendlyName => "Limiter";
+
         public int Order => 2; // After gain, before level meter
 
         public bool Enabled
