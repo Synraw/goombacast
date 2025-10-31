@@ -83,9 +83,11 @@ namespace GoombaCast.ViewModels
                     break;
                 case nameof(LimiterEnabled):
                     settings.LimiterEnabled = LimiterEnabled;
+                    App.Audio.SetLimiterEnabled(LimiterEnabled);
                     break;
                 case nameof(LimiterThreshold):
                     settings.LimiterThreshold = LimiterThreshold;
+                    App.Audio.SetLimiterThreshold(LimiterThreshold);
                     break;
             }
             

@@ -128,7 +128,7 @@ namespace GoombaCast.ViewModels
         }
 
         private double CalculatePeakPosition(double peakDb) 
-            => 5 + (peakDb + 90) / 90 * ProgressBarWidth;
+            => 5 + ((peakDb + 90) / 90) * ProgressBarWidth;
 
         private void OnLevelsAvailable(float left, float right) 
             => UpdatePeakLevels(left, right);
