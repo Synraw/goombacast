@@ -21,7 +21,7 @@ namespace GoombaCast.ViewModels
     public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         // Meter display and update constants
-        private const float PeakFallRate = 15.0f;        // Rate at which peak indicators fall (dB/sec)
+        private const float PeakFallRate = 15.0f;         // Rate at which peak indicators fall (dB/sec)
         private const float PeakUpdateInterval = 50.0f;   // Update interval for peak meters (ms)
         private const float ProgressBarWidth = 275.0f;    // Width of the VU meter progress bars
 

@@ -125,7 +125,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="Recording" FontSize="16">
+                <TabItem Header="Output" FontSize="16">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20" Spacing="25" MaxWidth="700">

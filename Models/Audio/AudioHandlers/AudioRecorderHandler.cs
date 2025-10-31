@@ -3,7 +3,6 @@ using NAudio.Lame;
 using NAudio.Wave;
 using System;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace GoombaCast.Models.Audio.AudioHandlers
 {
@@ -18,7 +17,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
         public string FriendlyName => "Audio Recorder";
         public int Order => 200; // Run after processing handlers
         public bool Enabled => _enabled;
-
         public bool IsRecording => _writer != null;
 
         public void StartRecording(string outputDirectory)
