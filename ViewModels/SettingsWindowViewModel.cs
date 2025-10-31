@@ -113,10 +113,15 @@ namespace GoombaCast.ViewModels
             if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 var mainWindow = desktop.MainWindow!;
-                
-                string parentPath = Path.GetFullPath(Path.GetDirectoryName(RecordingDirectory) ?? RecordingDirectory);
-                IStorageFolder? startFolder = await mainWindow.StorageProvider.TryGetFolderFromPathAsync(parentPath);
-              
+
+                string? recordingDir = RecordingDirectory;
+                string? dirName = recordingDir != null ? Path.GetDirectoryName(recordingDir) : null;
+                string? parentPath = dirName != null ? Directory.GetParent(dirName)?.FullName : recordingDir;
+
+                IStorageFolder? startFolder = parentPath != null
+                    ? await mainWindow.StorageProvider.TryGetFolderFromPathAsync(parentPath)
+                    : null;
+
                 var folders = await mainWindow.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
                 {
                     Title = "Select Recording Directory",
