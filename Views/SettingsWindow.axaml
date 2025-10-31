@@ -8,6 +8,7 @@
         x:DataType="vm:SettingsWindowViewModel"
         MinWidth="550" MinHeight="500"
         MaxWidth="800" MaxHeight="900"
+        CanMaximize="False"
         SizeToContent="WidthAndHeight"
         Icon="/Assets/goomba-logo.ico"
         Title="GoombaCast Settings"
