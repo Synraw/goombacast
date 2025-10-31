@@ -7,13 +7,13 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest # Changed to Windows build environment
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
     
@@ -28,9 +28,16 @@ jobs:
       
     - name: Publish
       run: dotnet publish --configuration Release --no-build --output publish
+
+    - name: Zip Release
+      run: Compress-Archive -Path publish\* -DestinationPath GoombaCast.zip
       
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
       with:
-        name: GoombaCast-${{ github.ref_name }}
-        path: publish/**
+        files: GoombaCast.zip
+        name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
