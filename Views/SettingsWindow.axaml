@@ -42,10 +42,12 @@
 
             <!-- Main Content -->
             <TabControl>
+                <!-- Audio Tab -->
                 <TabItem Header="Audio" FontSize="16">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20" Spacing="25" MaxWidth="700">
+
                             <!-- Input Section -->
                             <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
                                 <StackPanel Spacing="15">
@@ -82,10 +84,12 @@
                     </ScrollViewer>
                 </TabItem>
 
+                <!-- Server Tab -->
                 <TabItem Header="Server" FontSize="16">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20" Spacing="25" MaxWidth="700">
+
                             <!-- Connection Settings -->
                             <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
                                 <StackPanel Spacing="15">
@@ -125,10 +129,12 @@
                     </ScrollViewer>
                 </TabItem>
 
+                <!-- Output Tab -->
                 <TabItem Header="Output" FontSize="16">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20" Spacing="25" MaxWidth="700">
+
                             <!-- Recording Settings -->
                             <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
                                 <StackPanel Spacing="15">

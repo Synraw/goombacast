@@ -15,7 +15,6 @@ namespace GoombaCast.Services
         private readonly LimiterAudioHandler _limiter;
         private readonly AudioRecorderHandler _recorder;
 
-        // Change return type and parameter type to float
         public void SetGainLevel(float gainDb) 
             => _gain.GainDb = gainDb;
 

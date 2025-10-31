@@ -72,10 +72,10 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public int GetListenerCount()
         {
-            if (Stats?.source is null)
+            if (Stats?.source?.Count <= 0)
                 return 0;
 
-            return Stats.source.Sum(s => s.listeners);
+            return Stats!.source!.Sum(s => s.listeners);
         }
 
         public class Icestats
@@ -90,6 +90,7 @@ namespace GoombaCast.Models.Audio.Streaming
             public string? server_start { get; set; }
             public int stream_kbytes_read { get; set; }
             public int stream_kbytes_sent { get; set; }
+            [JsonConverter(typeof(SourceConverter))]
             public List<Source>? source { get; set; }
         }
 
@@ -115,6 +116,35 @@ namespace GoombaCast.Models.Audio.Streaming
             public string? title { get; set; }
             public int total_mbytes_sent { get; set; }
             public string? yp_currently_playing { get; set; }
+        }
+
+        public class SourceConverter : JsonConverter<List<Source>>
+        {
+            public override List<Source>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            {
+                if (reader.TokenType == JsonTokenType.Null)
+                    return null;
+
+                if (reader.TokenType == JsonTokenType.StartObject)
+                {
+                    // Single source
+                    var source = JsonSerializer.Deserialize<Source>(ref reader, options);
+                    return source != null ? new List<Source> { source } : null;
+                }
+
+                if (reader.TokenType == JsonTokenType.StartArray)
+                {
+                    // Multiple sources
+                    return JsonSerializer.Deserialize<List<Source>>(ref reader, options);
+                }
+
+                throw new JsonException($"Unexpected token {reader.TokenType} when parsing source");
+            }
+
+            public override void Write(Utf8JsonWriter writer, List<Source> value, JsonSerializerOptions options)
+            {
+                JsonSerializer.Serialize(writer, value, options);
+            }
         }
     }
 }
