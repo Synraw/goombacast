@@ -3,7 +3,7 @@ using System;
 
 namespace GoombaCast.Models.Audio.AudioHandlers
 {
-    public class LimiterAudioHandler : AudioHandler
+    public class LimiterAudioHandler : IAudioHandler
     {
         private bool _enabled = true;
         private float _threshold = -3.0f; // Default threshold in dB

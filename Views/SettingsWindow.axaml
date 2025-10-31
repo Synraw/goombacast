@@ -124,6 +124,34 @@
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
+
+                <TabItem Header="Recording" FontSize="16">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="20" Spacing="25" MaxWidth="700">
+                            <!-- Recording Settings -->
+                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="15">
+                                    <TextBlock Text="RECORDING SETTINGS" Foreground="#99FFFFFF" 
+                                             FontSize="12" FontWeight="SemiBold"/>
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Recording Directory" Foreground="White"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <TextBox Grid.Column="0" 
+                                                    Text="{Binding RecordingDirectory}"
+                                                    IsReadOnly="True"
+                                                    ToolTip.Tip="Location where recordings will be saved"/>
+                                            <Button Grid.Column="1" 
+                                                    Margin="5,0,0,0"
+                                                    Content="Browse..."
+                                                    Command="{Binding SelectRecordingDirectoryCommand}"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
             </TabControl>
         </DockPanel>
     </Panel>

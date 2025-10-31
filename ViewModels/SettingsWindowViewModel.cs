@@ -1,9 +1,14 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace GoombaCast.ViewModels
 {
@@ -35,6 +40,9 @@ namespace GoombaCast.ViewModels
         [ObservableProperty]
         private float _limiterThreshold;
 
+        [ObservableProperty]
+        private string _recordingDirectory;
+
         public SettingsWindowViewModel()
         {
             var settings = SettingsService.Default.Settings;
@@ -54,6 +62,8 @@ namespace GoombaCast.ViewModels
             SelectedMicrophone = savedId is null ? 
                 AvailableMicrophones.FirstOrDefault() : 
                 devices.FirstOrDefault(d => d.Id == savedId);
+
+            RecordingDirectory = settings.RecordingDirectory;
 
             PropertyChanged += (s, e) => UpdateSetting(e.PropertyName!);
         }
@@ -89,9 +99,40 @@ namespace GoombaCast.ViewModels
                     settings.LimiterThreshold = LimiterThreshold;
                     App.Audio.SetLimiterThreshold(LimiterThreshold);
                     break;
+                case nameof(RecordingDirectory):
+                    settings.RecordingDirectory = RecordingDirectory;
+                    break;
             }
             
             SettingsService.Default.Save();
+        }
+
+        [RelayCommand]
+        private async Task SelectRecordingDirectory()
+        {
+            if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var mainWindow = desktop.MainWindow!;
+                
+                string parentPath = Path.GetFullPath(Path.GetDirectoryName(RecordingDirectory) ?? RecordingDirectory);
+                IStorageFolder? startFolder = await mainWindow.StorageProvider.TryGetFolderFromPathAsync(parentPath);
+              
+                var folders = await mainWindow.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "Select Recording Directory",
+                    AllowMultiple = false,
+                    SuggestedStartLocation = startFolder
+                });
+
+                var folder = folders.FirstOrDefault();
+                if (folder != null)
+                {
+                    RecordingDirectory = folder.Path.LocalPath;
+                    var settings = SettingsService.Default.Settings;
+                    settings.RecordingDirectory = RecordingDirectory;
+                    SettingsService.Default.Save();
+                }
+            }
         }
     }
 }

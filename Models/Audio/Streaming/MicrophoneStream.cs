@@ -50,9 +50,10 @@ namespace GoombaCast.Models.Audio.Streaming
         private readonly object _micLock = new();
 
         private readonly object _handlerLock = new();
-        private AudioHandler[] _handlerSnapshot = [];
+        private IAudioHandler[] _handlerSnapshot = [];
 
         public InputDevice? CurrentInputDevice => inputDevice;
+        public WaveFormat WaveFormat => _waveFormat;
 
         public void Start()
         {
@@ -155,7 +156,7 @@ namespace GoombaCast.Models.Audio.Streaming
             return true;
         }
 
-        public void AddAudioHandler(AudioHandler handler)
+        public void AddAudioHandler(IAudioHandler handler)
         {
             ArgumentNullException.ThrowIfNull(handler);
 
@@ -174,7 +175,7 @@ namespace GoombaCast.Models.Audio.Streaming
             }
         }
 
-        public bool RemoveAudioHandler(AudioHandler handler)
+        public bool RemoveAudioHandler(IAudioHandler handler)
         {
             if (handler is null) return false;
             bool removed;

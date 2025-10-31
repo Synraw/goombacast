@@ -8,7 +8,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
     /// Publishes stereo dBFS levels for UI without modifying audio.
     /// Supports 16-bit PCM audio in both mono and stereo formats.
     /// </summary>
-    public sealed class LevelMeterAudioHandler : AudioHandler
+    public sealed class LevelMeterAudioHandler : IAudioHandler
     {
         private const int BitsInWord = 16;
         private const int MaxInt16Value = 32768; // 2^15

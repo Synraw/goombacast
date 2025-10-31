@@ -33,6 +33,12 @@ namespace GoombaCast.Services
         [JsonPropertyName("limiterThreshold")]
         public float LimiterThreshold { get; set; } = -3.0f;
 
+        [JsonPropertyName("recordingDirectory")]
+        public string RecordingDirectory { get; set; } = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+            "GoombaCast Recordings"
+        );
+
         // Add validation methods
         public bool IsValid()
         {

@@ -66,9 +66,15 @@ namespace GoombaCast.ViewModels
         [ObservableProperty] private Thickness _leftPeakPosition = new(5, 0, 0, 0);
         [ObservableProperty] private Thickness _rightPeakPosition = new(5, 0, 0, 0);
 
+        // Observable recording state properties
+        [ObservableProperty] private bool _isRecording;
+        [ObservableProperty] private string _recordButtonText = "Start Recording";
+        [ObservableProperty] private bool _isRecordButtonEnabled = true;
+
         // Commands
         public IAsyncRelayCommand? OpenSettingsCommand { get; private set; }
         public IAsyncRelayCommand? ToggleStreamCommand { get; private set; }
+        public IRelayCommand?      ToggleRecordCommand { get; private set; }
 
         /// <summary>
         /// Default constructor for design-time use
@@ -112,6 +118,7 @@ namespace GoombaCast.ViewModels
         {
             OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
             ToggleStreamCommand = new AsyncRelayCommand(ToggleStream);
+            ToggleRecordCommand = new RelayCommand(ToggleRecording);
         }
 
         /// <summary>
@@ -337,6 +344,56 @@ namespace GoombaCast.ViewModels
             IsStreaming = false;
             IsListenerCountVisible = false;
             Logging.Log($"{streamName} stream stopped.");
+        }
+
+        /// <summary>
+        /// Toggles the recording state between starting and stopping
+        /// </summary>
+        private void ToggleRecording()
+        {
+            var settings = SettingsService.Default.Settings;
+            IsRecordButtonEnabled = false;
+
+            try
+            {
+                if (!_audioEngine!.IsRecording)
+                {
+                    StartRecording();
+                }
+                else
+                {
+                    StopRecording();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Error {(_audioEngine!.IsRecording ? "stopping" : "starting")} recording: {ex.Message}");
+            }
+            finally
+            {
+                IsRecordButtonEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// Starts the recording
+        /// </summary>
+        private void StartRecording()
+        {
+            var settings = SettingsService.Default.Settings;
+            _audioEngine?.StartRecording(settings.RecordingDirectory);
+            IsRecording = true;
+            RecordButtonText = "Stop Recording";
+        }
+
+        /// <summary>
+        /// Stops the recording
+        /// </summary>
+        private void StopRecording()
+        {
+            _audioEngine?.StopRecording();
+            IsRecording = false;
+            RecordButtonText = "Start Recording";
         }
 
         /// <summary>

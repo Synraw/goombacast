@@ -85,7 +85,9 @@
                     Height="100"
                     Margin="5,0,5,0"
                     Background="Black">
+                
                 <Grid RowDefinitions="*,Auto">
+					
                     <StackPanel Orientation="Horizontal"
                               Margin="5"
                               VerticalAlignment="Center">
@@ -109,6 +111,10 @@
                              FontSize="14"
                              HorizontalAlignment="Center"
                              Margin="5,-20,0,5"/>
+                    <Ellipse Margin="10" Width="15" Height="15" Fill="Red" 
+                             IsVisible="{Binding IsRecording}"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Top"/>
                 </Grid>
             </Border>
 
@@ -124,15 +130,13 @@
                     Margin="5"/>
 
             <!-- Media Controls -->
-            <UniformGrid Grid.Row="3" Columns="2" Margin="5">
-                <Button Content="Record"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"/>
-                <Button Content="Mixer"
-                        Margin="5,0,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"/>
-            </UniformGrid>
+            <Button Grid.Row="3"
+                    Command="{Binding ToggleRecordCommand}"
+                    Content="{Binding RecordButtonText}"
+                    IsEnabled="{Binding IsRecordButtonEnabled}"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center"
+                    Margin="5,0"/>
 
             <!-- Volume Meters -->
             <StackPanel Grid.Row="2"

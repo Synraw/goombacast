@@ -113,7 +113,7 @@ namespace GoombaCast
         {
             try
             {
-                Audio.Start();
+                _audio?.Start();
             }
             catch (Exception ex)
             {
@@ -140,10 +140,7 @@ namespace GoombaCast
 
             try
             {
-                if (_audio != null)
-                {
-                    await Task.Run(() => _audio.Dispose());
-                }
+                await Task.Run(() => _audio?.Dispose());
 
                 if (_serviceProvider is IAsyncDisposable asyncDisposable)
                 {
@@ -158,6 +155,10 @@ namespace GoombaCast
             {
                 Logging.LogError($"Error disposing application resources: {ex}");
                 throw;
+            }
+            finally
+            {
+                GC.SuppressFinalize(this);
             }
         }
     }

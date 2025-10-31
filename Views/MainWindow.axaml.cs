@@ -34,5 +34,9 @@ namespace GoombaCast.Views
                 LogWindow.ScrollToEnd();
             }
         }
+
+        private void Button_ActualThemeVariantChanged(object? sender, EventArgs e)
+        {
+        }
     }
 }

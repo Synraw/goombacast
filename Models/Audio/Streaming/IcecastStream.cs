@@ -74,7 +74,7 @@ namespace GoombaCast.Models.Audio.Streaming
         public IcecastStream() { }
 
         public async Task Connect() => await OpenAsync();
-        public async Task DisconnectAsync(CancellationToken ct = default)
+        public async Task Disconnect(CancellationToken ct = default)
         {
             if (_open && _net != null)
             {
@@ -155,7 +155,7 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public override async ValueTask DisposeAsync()
         {
-            await DisconnectAsync().ConfigureAwait(false);
+            await Disconnect().ConfigureAwait(false);
             await base.DisposeAsync().ConfigureAwait(false);
             GC.SuppressFinalize(this);
         }
@@ -164,7 +164,7 @@ namespace GoombaCast.Models.Audio.Streaming
         {
             if (disposing)
             {
-                DisconnectAsync().GetAwaiter().GetResult();
+                Disconnect().GetAwaiter().GetResult();
             }
             base.Dispose(disposing);
         }

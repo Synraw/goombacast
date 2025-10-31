@@ -13,6 +13,7 @@ namespace GoombaCast.Services
         private readonly LevelMeterAudioHandler _levelMeter;
         private readonly GainAudioHandler _gain;
         private readonly LimiterAudioHandler _limiter;
+        private readonly AudioRecorderHandler _recorder;
 
         // Change return type and parameter type to float
         public void SetGainLevel(float gainDb) 
@@ -70,6 +71,8 @@ namespace GoombaCast.Services
                 ThresholdDb = settings.LimiterThreshold
             };
 
+            _recorder = new AudioRecorderHandler();
+
             var inputDeviceId = SettingsService.Default.Settings.InputDeviceId;
             InputDevice? device = null;
             if (inputDeviceId is not null)
@@ -81,6 +84,7 @@ namespace GoombaCast.Services
             _micStream.AddAudioHandler(_gain);
             _micStream.AddAudioHandler(_levelMeter);
             _micStream.AddAudioHandler(_limiter);
+            _micStream.AddAudioHandler(_recorder);
         }
 
         public bool ChangeInputDevice(string deviceId)
@@ -100,6 +104,7 @@ namespace GoombaCast.Services
             => _micStream.Stop();
 
         public bool IsBroadcasting => _icecastStream.IsOpen;
+        public bool IsRecording => _recorder.IsRecording;
 
         public async Task StartBroadcastAsync(CancellationToken ct = default)
         {
@@ -113,7 +118,7 @@ namespace GoombaCast.Services
 
         public async Task StopBroadcast()
         {
-            await _icecastStream.DisconnectAsync();
+            await _icecastStream.Disconnect().ConfigureAwait(false);
         }
 
         public void StartBroadcast()
@@ -131,6 +136,20 @@ namespace GoombaCast.Services
         public void SetLimiterThreshold(float thresholdDb) 
             => _limiter.ThresholdDb = thresholdDb;
 
-        public void Dispose() => _micStream.Dispose();
+        public void StartRecording(string directory)
+        {
+            _recorder.StartRecording(directory);
+        }
+
+        public void StopRecording()
+        {
+            _recorder.StopRecording();
+        }
+
+        public void Dispose()
+        {
+            _micStream.Dispose();
+            _recorder.Dispose();
+        }
     }
 }

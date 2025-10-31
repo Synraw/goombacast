@@ -5,7 +5,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
 {
     // Callback-style interface for buffer observation or in-place modification.
     // Called on the audio capture thread; keep work lightweight.
-    public interface AudioHandler
+    public interface IAudioHandler
     {
         // Friendly name for logging/debugging.
         string FriendlyName { get; }

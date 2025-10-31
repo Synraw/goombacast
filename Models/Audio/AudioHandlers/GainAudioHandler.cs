@@ -4,7 +4,7 @@ using System;
 namespace GoombaCast.Models.Audio.AudioHandlers
 {
     // In-place gain (pre-encoder). Assumes 16-bit PCM.
-    public sealed class GainAudioHandler : AudioHandler
+    public sealed class GainAudioHandler : IAudioHandler
     {
         // dB gain applied to samples. 0 = unity.
         private float _gainDb;
