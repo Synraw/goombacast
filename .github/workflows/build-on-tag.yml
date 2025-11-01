@@ -30,13 +30,12 @@ jobs:
       run: dotnet build --configuration Release --no-restore
       
     - name: Publish
-      run: dotnet publish --configuration Release --no-build /p:PublishProfile=Properties\PublishProfiles\FolderProfile.pubxml
-      
-    - name: List Directory Content
-      run: Get-ChildItem -Path "." -Recurse
-      
+      run: dotnet publish --configuration Release --no-build -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=true
+
     - name: Zip Release
-      run: Compress-Archive -Path ".\bin\Release\net8.0-windows\publish\*" -DestinationPath GoombaCast.zip
+      run: |
+        $publishPath = Resolve-Path ".\bin\Release\net8.0-windows\win-x64\publish"
+        Compress-Archive -Path "$publishPath\*" -DestinationPath GoombaCast.zip
       
     - name: Create Release
       uses: softprops/action-gh-release@v1
