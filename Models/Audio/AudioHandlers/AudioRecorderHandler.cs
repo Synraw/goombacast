@@ -75,9 +75,10 @@ namespace GoombaCast.Models.Audio.AudioHandlers
         public void Dispose()
         {
             if (_disposed) return;
-            
+
             StopRecording();
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

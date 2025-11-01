@@ -30,7 +30,7 @@ jobs:
       run: dotnet build --configuration Release --no-restore
       
     - name: Publish
-      run: dotnet publish --configuration Release --no-build --output publish
+      run: dotnet publish -c Release -r win-x64 --self-contained true --no-build --output publish
 
     - name: Zip Release
       run: Compress-Archive -Path publish\* -DestinationPath GoombaCast.zip
