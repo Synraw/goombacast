@@ -182,6 +182,9 @@ namespace GoombaCast.ViewModels
                     LeftPeakDb = Math.Max(LeftDb, LeftPeakDb - decreaseAmount);
                 if (RightPeakDb > RightDb)
                     RightPeakDb = Math.Max(RightDb, RightPeakDb - decreaseAmount);
+
+                LeftDb = Math.Max(-90.0f, LeftDb - decreaseAmount);
+                RightDb = Math.Max(-90.0f, RightDb - decreaseAmount);
             });
         }
 
@@ -189,14 +192,18 @@ namespace GoombaCast.ViewModels
         /// Calculates the position of the peak indicator on the VU meter
         /// </summary>
         private float CalculatePeakPosition(float peakDb)
-            => 5.0f + (peakDb + 90.0f) / 90.0f * ProgressBarWidth;
+        {
+            if (peakDb < -90.0f || peakDb == float.NaN)
+                return 5.0f;
+            return 5.0f + (peakDb + 90.0f) / 90.0f * ProgressBarWidth;
+        }
 
         // Event handlers
         private void OnLevelsAvailable(float left, float right)
             => UpdatePeakLevels(left, right);
 
         private void OnPeakUpdateTimerElapsed(object? sender, ElapsedEventArgs e)
-            => UpdatePeakFalloff((PeakFallRate * PeakUpdateInterval) / 1000.0f);
+            => UpdatePeakFalloff(PeakFallRate * (PeakUpdateInterval / 1000.0f));
 
         private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e)
             => StreamingTime = $"{(DateTime.Now - _streamStartTime):hh\\:mm\\:ss}";
