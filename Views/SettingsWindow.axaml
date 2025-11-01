@@ -52,11 +52,38 @@
                             <!-- Input Section -->
                             <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
                                 <StackPanel Spacing="15">
-                                    <TextBlock Text="INPUT DEVICE" Foreground="#99FFFFFF" 
+                                    <TextBlock Text="AUDIO SOURCE" Foreground="#99FFFFFF" 
                                              FontSize="12" FontWeight="SemiBold"/>
-                                    <ComboBox HorizontalAlignment="Stretch"
-                                            ItemsSource="{Binding AvailableMicrophones}"
-                                            SelectedItem="{Binding SelectedMicrophone}"/>
+                                    
+                                    <!-- Audio Source Toggle -->
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock Text="Microphone" Foreground="White" 
+                                                  VerticalAlignment="Center"/>
+                                        <ToggleSwitch IsChecked="{Binding UseLoopback}"
+                                                     OnContent=""
+                                                     OffContent=""
+                                                     Margin="5,0,-10,0"/>
+                                        <TextBlock Text="Loopback" Foreground="White" 
+                                                  VerticalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <!-- Microphone Input -->
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Microphone Device" Foreground="White"/>
+                                        <ComboBox HorizontalAlignment="Stretch"
+                                                 ItemsSource="{Binding AvailableMicrophones}"
+                                                 SelectedItem="{Binding SelectedMicrophone}"
+                                                 IsEnabled="{Binding !UseLoopback}"/>
+                                    </StackPanel>
+
+                                    <!-- Loopback Input -->
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Loopback Device" Foreground="White"/>
+                                        <ComboBox HorizontalAlignment="Stretch"
+                                                 ItemsSource="{Binding AvailableAudioOutputs}"
+                                                 SelectedItem="{Binding SelectedAudioLoopback}"
+                                                 IsEnabled="{Binding UseLoopback}"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 

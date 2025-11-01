@@ -77,10 +77,32 @@ namespace GoombaCast
             var loggingService = _serviceProvider.GetRequiredService<ILoggingService>();
             Logging.Initialize(loggingService);
 
-            // Store AudioEngine instance
+            // Store AudioEngine instance and configure from settings
             _audio = _serviceProvider.GetRequiredService<AudioEngine>();
+            ConfigureAudioEngineFromSettings(_audio);
 
             DisableAvaloniaDataAnnotationValidation();
+        }
+
+        private void ConfigureAudioEngineFromSettings(AudioEngine audio)
+        {
+            var settings = SettingsService.Default.Settings;
+            
+            audio.RecreateAudioStream(settings.AudioStreamType);
+
+            if (settings.AudioStreamType == AudioEngine.AudioStreamType.Microphone && 
+                !string.IsNullOrEmpty(settings.MicrophoneDeviceId))
+            {
+                audio.ChangeDevice(settings.MicrophoneDeviceId);
+            }
+            else if (settings.AudioStreamType == AudioEngine.AudioStreamType.Loopback && 
+                     !string.IsNullOrEmpty(settings.LoopbackDeviceId))
+            {
+                audio.ChangeDevice(settings.LoopbackDeviceId);
+            }
+
+            audio.SetLimiterEnabled(settings.LimiterEnabled);
+            audio.SetLimiterThreshold(settings.LimiterThreshold);
         }
 
         private void ConfigureMainWindow(IClassicDesktopStyleApplicationLifetime desktop)

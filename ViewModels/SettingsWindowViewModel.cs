@@ -5,10 +5,12 @@ using CommunityToolkit.Mvvm.Input;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using static GoombaCast.Services.AudioEngine;
 
 namespace GoombaCast.ViewModels
 {
@@ -20,7 +22,13 @@ namespace GoombaCast.ViewModels
         private ObservableCollection<InputDevice> _availableMicrophones = [];
 
         [ObservableProperty]
+        private ObservableCollection<OutputDevice> _availableAudioOutputs = [];
+
+        [ObservableProperty]
         private InputDevice? _selectedMicrophone;
+
+        [ObservableProperty]
+        private OutputDevice? _selectedAudioLoopback;
 
         [ObservableProperty]
         private string _serverAddress;
@@ -43,6 +51,38 @@ namespace GoombaCast.ViewModels
         [ObservableProperty]
         private string _recordingDirectory;
 
+        private bool _useLoopback;
+
+        public bool UseLoopback
+        {
+            get => _useLoopback;
+            set
+            {
+                if (SetProperty(ref _useLoopback, value))
+                {
+                    var settings = SettingsService.Default.Settings;
+                    var newType = value ? AudioStreamType.Loopback : AudioStreamType.Microphone;
+                    
+                    settings.AudioStreamType = newType;
+
+                    App.Audio.RecreateAudioStream(newType);
+
+                    if (value)
+                    {
+                        App.Audio.ChangeDevice(SelectedAudioLoopback?.Id ?? string.Empty);
+                        settings.LoopbackDeviceId = SelectedAudioLoopback?.Id;
+                    }
+                    else
+                    {
+                        App.Audio.ChangeDevice(SelectedMicrophone?.Id ?? string.Empty);
+                        settings.MicrophoneDeviceId = SelectedMicrophone?.Id;
+                    }
+                    
+                    SettingsService.Default.Save();
+                }
+            }
+        }
+
         public SettingsWindowViewModel()
         {
             var settings = SettingsService.Default.Settings;
@@ -51,21 +91,32 @@ namespace GoombaCast.ViewModels
             StreamName = settings.StreamName ?? "My Local Icecast Stream";
             Username = settings.UserName ?? "user";
             Password = settings.Password ?? "password";
-
             LimiterEnabled = settings.LimiterEnabled;
             LimiterThreshold = settings.LimiterThreshold;
-
-            var devices = InputDevice.GetActiveInputDevices();
-            AvailableMicrophones = new ObservableCollection<InputDevice>(devices);
-
-            var savedId = settings.InputDeviceId;
-            SelectedMicrophone = savedId is null ? 
-                AvailableMicrophones.FirstOrDefault() : 
-                devices.FirstOrDefault(d => d.Id == savedId);
-
             RecordingDirectory = settings.RecordingDirectory;
 
+            InitializeDevices(settings);
+
             PropertyChanged += (s, e) => UpdateSetting(e.PropertyName!);
+        }
+
+        private void InitializeDevices(AppSettings settings)
+        {
+            var inputDevices = InputDevice.GetActiveInputDevices();
+            var outputDevices = OutputDevice.GetActiveOutputDevices();
+
+            AvailableMicrophones = new ObservableCollection<InputDevice>(inputDevices);
+            AvailableAudioOutputs = new ObservableCollection<OutputDevice>(outputDevices);
+
+            SelectedMicrophone = settings.MicrophoneDeviceId != null
+                ? inputDevices.FirstOrDefault(d => d.Id == settings.MicrophoneDeviceId)
+                : inputDevices.FirstOrDefault();
+
+            SelectedAudioLoopback = settings.LoopbackDeviceId != null
+                ? outputDevices.FirstOrDefault(d => d.Id == settings.LoopbackDeviceId)
+                : outputDevices.FirstOrDefault();
+
+            UseLoopback = settings.AudioStreamType == AudioStreamType.Loopback;
         }
 
         private void UpdateSetting(string propertyName)
@@ -75,8 +126,18 @@ namespace GoombaCast.ViewModels
             switch (propertyName)
             {
                 case nameof(SelectedMicrophone):
-                    App.Audio.ChangeInputDevice(SelectedMicrophone?.Id ?? string.Empty);
-                    settings.InputDeviceId = SelectedMicrophone?.Id;
+                    if (!UseLoopback && SelectedMicrophone != null)
+                    {
+                        settings.MicrophoneDeviceId = SelectedMicrophone.Id;
+                        App.Audio.ChangeDevice(SelectedMicrophone.Id);
+                    }
+                    break;
+                case nameof(SelectedAudioLoopback):
+                    if (UseLoopback && SelectedAudioLoopback != null)
+                    {
+                        settings.LoopbackDeviceId = SelectedAudioLoopback.Id;
+                        App.Audio.ChangeDevice(SelectedAudioLoopback.Id);
+                    }
                     break;
                 case nameof(ServerAddress):
                     settings.ServerAddress = ServerAddress;
@@ -103,7 +164,7 @@ namespace GoombaCast.ViewModels
                     settings.RecordingDirectory = RecordingDirectory;
                     break;
             }
-            
+
             SettingsService.Default.Save();
         }
 

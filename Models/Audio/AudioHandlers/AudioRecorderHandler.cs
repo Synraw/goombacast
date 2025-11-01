@@ -19,6 +19,12 @@ namespace GoombaCast.Models.Audio.AudioHandlers
         public bool Enabled => _enabled;
         public bool IsRecording => _writer != null;
 
+        public void ProcessBuffer(byte[] buffer, int offset, int count, WaveFormat waveFormat)
+        {
+            if (!IsRecording || _writer == null) return;
+            _writer.Write(buffer, offset, count);
+        }
+
         public void StartRecording(string outputDirectory)
         {
             if (IsRecording) return;
@@ -28,9 +34,12 @@ namespace GoombaCast.Models.Audio.AudioHandlers
             _currentFile = Path.Combine(outputDirectory,
                 $"Recording_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp3");
 
-            _writer = new LameMP3FileWriter(_currentFile, _fmt, 128);
-            _enabled = true;
-            Logging.Log($"Started recording to {_currentFile}");
+            if (_fmt != null)
+            {
+                _writer = new LameMP3FileWriter(_currentFile, _fmt, 128);
+                _enabled = true;
+                Logging.Log($"Started recording to {_currentFile}");
+            }
         }
 
         public void StopRecording()
@@ -48,30 +57,26 @@ namespace GoombaCast.Models.Audio.AudioHandlers
         public void OnStart(WaveFormat waveFormat)
         {
             _fmt = waveFormat;
-        }
-
-        public void ProcessBuffer(byte[] buffer, int offset, int count, WaveFormat waveFormat)
-        {
-            if (!IsRecording) return;
-            _writer?.Write(buffer, offset, count);
+            
+            // If we were waiting to start recording, do it now
+            if (_currentFile != null)
+            {
+                _writer = new LameMP3FileWriter(_currentFile, _fmt, 128);
+                _enabled = true;
+            }
         }
 
         public void OnStop()
         {
-            if (_writer != null)
-            {
-                _writer.Flush();
-                _writer.Dispose();
-                _writer = null;
-                Logging.Log($"Paused recording {_currentFile}");
-            }
+            _writer?.Dispose();
+            _writer = null;
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             
-            StopRecording(); // Use StopRecording to ensure proper cleanup
+            StopRecording();
             _disposed = true;
         }
     }

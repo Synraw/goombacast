@@ -99,6 +99,7 @@ namespace GoombaCast.ViewModels
             SetupEventHandlers();
             InitializeTimers();
             ScanInputDevices();
+            ScanOutputDevices();
         }
 
         /// <summary>
@@ -263,6 +264,15 @@ namespace GoombaCast.ViewModels
         {
             foreach (var device in InputDevice.GetActiveInputDevices())
                 Logging.Log($"Found input device: {device}");
+        }
+
+        /// <summary>
+        /// Scans and logs available output devices
+        /// </summary>
+        private void ScanOutputDevices()
+        {
+            foreach (var device in OutputDevice.GetActiveOutputDevices())
+                Logging.Log($"Found output device: {device}");
         }
 
         /// <summary>

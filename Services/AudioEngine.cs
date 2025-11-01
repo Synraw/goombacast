@@ -8,27 +8,24 @@ namespace GoombaCast.Services
 {
     public sealed class AudioEngine : IDisposable
     {
+        public enum AudioStreamType
+        {
+            Microphone,
+            Loopback
+        }
+
         private readonly IcecastStream _icecastStream;
-        private readonly MicrophoneStream _micStream;
         private readonly LevelMeterAudioHandler _levelMeter;
         private readonly GainAudioHandler _gain;
         private readonly LimiterAudioHandler _limiter;
         private readonly AudioRecorderHandler _recorder;
-
-        public void SetGainLevel(float gainDb) 
-            => _gain.GainDb = gainDb;
-
-        public float GetGainLevel() 
-            => _gain.GainDb;
-
-        // Re-expose levels for view models (already marshalled to UI thread)
-        public event Action<float, float>? LevelsAvailable;
         
-        // Re-expose clipping detection for view models (already marshalled to UI thread)
-        public event Action<bool>? ClippingDetected;
+        private IAudioStream? _audioStream;
+        private AudioStreamType _streamType;
+        private readonly object _streamLock = new();
 
-        public static InputDevice? FindInputDevice(string deviceId)
-            => InputDevice.GetActiveInputDevices().Find(d => d.Id == deviceId);
+        public event Action<float, float>? LevelsAvailable;
+        public event Action<bool>? ClippingDetected;
 
         public AudioEngine(SynchronizationContext? uiContext)
         {
@@ -55,9 +52,15 @@ namespace GoombaCast.Services
                 LevelFloorDb = -90f
             };
 
-            _levelMeter.LevelsAvailable += (l, r) => LevelsAvailable?.Invoke(l, r);
+            _levelMeter.LevelsAvailable += (l, r) =>
+            {
+                LevelsAvailable?.Invoke(l, r);
+            };
 
-            _levelMeter.ClippingDetected += (isClipping) => ClippingDetected?.Invoke(isClipping);
+            _levelMeter.ClippingDetected += (isClipping) =>
+            {
+                ClippingDetected?.Invoke(isClipping);
+            };
 
             _gain = new GainAudioHandler
             {
@@ -71,41 +74,132 @@ namespace GoombaCast.Services
             };
 
             _recorder = new AudioRecorderHandler();
-
-            var inputDeviceId = SettingsService.Default.Settings.InputDeviceId;
-            InputDevice? device = null;
-            if (inputDeviceId is not null)
-            {
-                device = FindInputDevice(inputDeviceId);
-            }
-            
-            _micStream = new MicrophoneStream(_icecastStream, device);
-            _micStream.AddAudioHandler(_gain);
-            _micStream.AddAudioHandler(_levelMeter);
-            _micStream.AddAudioHandler(_limiter);
-            _micStream.AddAudioHandler(_recorder);
         }
 
-        public bool ChangeInputDevice(string deviceId)
-        {
-            var device = FindInputDevice(deviceId);
-            if (device is not null)
-            {
-                return _micStream.SetInputDevice(device);
-            }
-            return false;
-        }
+        public void SetGainLevel(float gainDb)
+            => _gain.GainDb = gainDb;
 
-        public void Start() 
-            => _micStream.Start();
-        
-        public void Stop() 
-            => _micStream.Stop();
+        public float GetGainLevel()
+            => _gain.GainDb;
 
         public bool IsBroadcasting => _icecastStream.IsOpen;
         public bool IsRecording => _recorder.IsRecording;
+        public AudioStreamType CurrentStreamType => _streamType;
 
-        public async Task StartBroadcastAsync(CancellationToken ct = default)
+        public static InputDevice? FindInputDevice(string deviceId)
+            => InputDevice.GetActiveInputDevices().Find(d => d.Id == deviceId);
+
+        public static OutputDevice? FindOutputDevice(string deviceId)
+            => OutputDevice.GetActiveOutputDevices().Find(d => d.Id == deviceId);
+
+        public void RecreateAudioStream(AudioStreamType streamType)
+        {
+            if(streamType == _streamType && _audioStream != null) //dont need to re-create the underlying stream engine, just the device
+                return;
+
+            lock (_streamLock)
+            {
+                try
+                {
+                    if (_audioStream != null)
+                    {
+                        _audioStream.Stop();
+                        _audioStream.Dispose();
+                        _audioStream = null;
+                    }
+
+                    var settings = SettingsService.Default.Settings;
+                    string? deviceId = streamType == AudioStreamType.Microphone
+                        ? settings.MicrophoneDeviceId
+                        : settings.LoopbackDeviceId;
+
+                    _streamType = streamType;
+
+                    // Create the appropriate stream type
+                    if (_streamType == AudioStreamType.Microphone)
+                    {
+                        var inputDevice = FindInputDevice(deviceId ?? string.Empty);
+                        _audioStream = new MicrophoneStream(_icecastStream, inputDevice);
+                    }
+                    else
+                    {
+                        var outputDevice = FindOutputDevice(deviceId ?? string.Empty);
+                        _audioStream = new LoopbackStream(_icecastStream, outputDevice);
+                    }
+
+                    // Add handlers
+                    _audioStream.AddAudioHandler(_levelMeter);
+                    _audioStream.AddAudioHandler(_gain);
+                    _audioStream.AddAudioHandler(_limiter);
+                    _audioStream.AddAudioHandler(_recorder);
+
+                    _audioStream.Start();
+                }
+                catch (Exception ex)
+                {
+                    Logging.Log($"Error recreating audio stream: {ex.Message}");
+                    throw;
+                }
+            }
+        }
+
+        public bool ChangeDevice(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId)) return false;
+            if (_audioStream == null) return false;
+
+            lock (_streamLock)
+            {
+                try
+                {
+                    bool wasRunning = _audioStream.IsRunning;
+                    
+                    // Always stop before changing device
+                    if (wasRunning)
+                    {
+                        _audioStream.Stop();
+                    }
+
+                    bool result = false;
+                    if (_streamType == AudioStreamType.Microphone)
+                    {
+                        var device = FindInputDevice(deviceId);
+                        if (device != null)
+                        {
+                            result = _audioStream.ChangeDevice(device.Id);
+                        }
+                    }
+                    else
+                    {
+                        var device = FindOutputDevice(deviceId);
+                        if (device != null)
+                        {
+                            result = _audioStream.ChangeDevice(device.Id);
+                        }
+                    }
+
+                    if (wasRunning && result)
+                    {
+                        _audioStream.Start();
+                    }
+
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    Logging.Log($"Error changing device: {ex.Message}");
+                    return false;
+                }
+            }
+        }
+
+        public void Start() 
+            => _audioStream?.Start();
+        
+        public void Stop() 
+            => _audioStream?.Stop();
+
+        public async Task StartBroadcastAsync()
         {
             if (!_icecastStream.IsOpen)
             {
@@ -147,7 +241,7 @@ namespace GoombaCast.Services
 
         public void Dispose()
         {
-            _micStream.Dispose();
+            _audioStream?.Dispose();
             _recorder.Dispose();
         }
     }

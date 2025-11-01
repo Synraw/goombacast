@@ -36,13 +36,13 @@ namespace GoombaCast.Models.Audio.Streaming
         }
     }
 
-    public sealed class MicrophoneStream(IcecastStream? icecastStream, InputDevice? device) : IDisposable
+    public sealed class MicrophoneStream(IcecastStream icecastStream, InputDevice? device) : IAudioStream
     {
         private WasapiCapture? _mic;
         private LameMP3FileWriter? _mp3Writer;
-        private IcecastStream? _iceStream = icecastStream;
-        private InputDevice? inputDevice = device ?? InputDevice.GetActiveInputDevices().FirstOrDefault();
-        private volatile bool _running;
+        private IcecastStream _iceStream = icecastStream;
+        private InputDevice? _inputDevice = device ?? InputDevice.GetActiveInputDevices().FirstOrDefault();
+        private volatile bool _running = false;
 
         private readonly WaveFormat _waveFormat = new(48000, 16, 2);
         private volatile bool _deviceSwitchInProgress;
@@ -52,8 +52,9 @@ namespace GoombaCast.Models.Audio.Streaming
         private readonly object _handlerLock = new();
         private IAudioHandler[] _handlerSnapshot = [];
 
-        public InputDevice? CurrentInputDevice => inputDevice;
+        public InputDevice? CurrentInputDevice => _inputDevice;
         public WaveFormat WaveFormat => _waveFormat;
+        public bool IsRunning => _running;
 
         public void Start()
         {
@@ -121,17 +122,13 @@ namespace GoombaCast.Models.Audio.Streaming
 
                     _mp3Writer?.Dispose();
                     _mp3Writer = null;
-                    
-                    _iceStream?.Dispose();
-                    _iceStream = null;
                 }
             }
         }
 
-        public void Dispose() 
-            => Stop();
+        public void Dispose() => Stop();
 
-        public bool SelectInputDevice(string deviceId)
+        public bool ChangeDevice(string? deviceId)
         {
             if (string.IsNullOrWhiteSpace(deviceId)) return false;
             var match = InputDevice.GetActiveInputDevices().FirstOrDefault(d => string.Equals(d.Id, deviceId, StringComparison.OrdinalIgnoreCase));
@@ -140,19 +137,17 @@ namespace GoombaCast.Models.Audio.Streaming
             return SetInputDevice(match);
         }
 
-        public bool SetInputDevice(InputDevice device)
+        private bool SetInputDevice(InputDevice device)
         {
             if (device is null) return false;
 
-            if (string.Equals(inputDevice?.Id, device.Id, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(_inputDevice?.Id, device.Id, StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            inputDevice = device;
-            
-            Logging.Log($"Input changed: {device}");
-            
+            _deviceSwitchInProgress = true; 
+            _inputDevice = device;
             RestartCapture();
-
+            Logging.Log($"Selected input device {_inputDevice}");
             return true;
         }
 
@@ -207,7 +202,7 @@ namespace GoombaCast.Models.Audio.Streaming
                 _mic = null;
             }
 
-            _mic = new WasapiCapture(inputDevice?.Device)
+            _mic = new WasapiCapture(_inputDevice?.Device)
             {
                 ShareMode = AudioClientShareMode.Shared,
                 WaveFormat = _waveFormat

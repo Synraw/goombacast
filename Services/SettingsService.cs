@@ -11,35 +11,30 @@ namespace GoombaCast.Services
     {
         [JsonPropertyName("volumeLevel")]
         public int VolumeLevel { get; set; }
-
-        [JsonPropertyName("inputDeviceId")]
-        public string? InputDeviceId { get; set; }
-
         [JsonPropertyName("serverAddress")]
         public string ServerAddress { get; set; } = "http://localhost:8000/";
-
         [JsonPropertyName("streamName")]
         public string StreamName { get; set; } = "My Stream";
-
         [JsonPropertyName("userName")]
         public string UserName { get; set; } = "source";
-
         [JsonPropertyName("password")]
         public string Password { get; set; } = "hackme";
-        
         [JsonPropertyName("limiterEnabled")]
         public bool LimiterEnabled { get; set; } = true;
-
         [JsonPropertyName("limiterThreshold")]
         public float LimiterThreshold { get; set; } = -3.0f;
-
         [JsonPropertyName("recordingDirectory")]
         public string RecordingDirectory { get; set; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
             "GoombaCast Recordings"
         );
+        [JsonPropertyName("microphoneDeviceId")]
+        public string? MicrophoneDeviceId { get; set; }
+        [JsonPropertyName("loopbackDeviceId")]
+        public string? LoopbackDeviceId { get; set; }
+        [JsonPropertyName("audioStreamType")]
+        public AudioEngine.AudioStreamType AudioStreamType { get; set; } = AudioEngine.AudioStreamType.Microphone;
 
-        // Add validation methods
         public bool IsValid()
         {
             return !string.IsNullOrWhiteSpace(ServerAddress) &&
