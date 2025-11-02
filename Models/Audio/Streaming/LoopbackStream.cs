@@ -62,7 +62,7 @@ namespace GoombaCast.Models.Audio.Streaming
             }
 
             _loopback = new WasapiLoopbackCapture(_outputDevice?.Device);
-            
+
             var stereoFormat = new WaveFormat(_loopback!.WaveFormat.SampleRate, 16, 2);
             _mp3Writer = new LameMP3FileWriter(_iceStream, stereoFormat, 320);
 
