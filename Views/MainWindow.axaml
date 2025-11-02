@@ -1,246 +1,281 @@
 <Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:vm="using:GoombaCast.ViewModels"
-        xmlns:conv="using:GoombaCast.Converters"
-        mc:Ignorable="d"
-        x:Class="GoombaCast.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Title="GoombaCast"
-        Icon="/Assets/goomba-logo.ico"
-        Width="550" Height="550"
-        WindowStartupLocation="CenterScreen"
-        CanResize="False"
-        Background="Transparent"
-        TransparencyLevelHint="AcrylicBlur"
-        ExtendClientAreaToDecorationsHint="True">
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:vm="using:GoombaCast.ViewModels"
+		xmlns:conv="using:GoombaCast.Converters"
+		mc:Ignorable="d"
+		x:Class="GoombaCast.Views.MainWindow"
+		x:DataType="vm:MainWindowViewModel"
+		Title="GoombaCast"
+		Icon="/Assets/goomba-logo.ico"
+		Width="550" Height="550"
+		WindowStartupLocation="CenterScreen"
+		CanResize="False"
+		Background="Transparent"
+		TransparencyLevelHint="AcrylicBlur"
+		ExtendClientAreaToDecorationsHint="True"
+		ExtendClientAreaChromeHints="PreferSystemChrome"
+		SystemDecorations="Full">
 
-    <Design.DataContext>
-        <vm:MainWindowViewModel/>
-    </Design.DataContext>
+	<Design.DataContext>
+		<vm:MainWindowViewModel/>
+	</Design.DataContext>
 
-    <Window.Resources>
-        <conv:DbToBrushConverter x:Key="DbBrush"
-                                MinDb="-90"
-                                YellowThresholdDb="-18"
-                                RedThresholdDb="-6"
-                                UseGradient="True"/>
-        <conv:BoolToColorConverter x:Key="StreamButtonColorConverter"
-                                  TrueValue="Red"
-                                  FalseValue="Green"/>
-        <conv:BoolToStringConverter x:Key="StreamButtonTextConverter"
-                                   TrueValue="Stop Streaming"
-                                   FalseValue="Start Streaming"/>
-    </Window.Resources>
+	<Window.Resources>
+		<!-- Update the DbToBrushConverter properties -->
+		<conv:DbToBrushConverter x:Key="DbBrush"
+								 MinDb="-90"
+								 YellowThresholdDb="-18"
+								 RedThresholdDb="-6"
+								 UseGradient="True"/>
+		<conv:BoolToColorConverter x:Key="StreamButtonColorConverter"
+								   TrueValue="Red"
+								   FalseValue="Green"/>
+		<conv:BoolToStringConverter x:Key="StreamButtonTextConverter"
+									TrueValue="Stop Streaming"
+									FalseValue="Start Streaming"/>
+	</Window.Resources>
 
-    <Window.Styles>
-        <Style Selector="ProgressBar /template/ Border#PART_Indicator">
-            <Setter Property="Background" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
-        </Style>
-        <Style Selector="Button#StreamStopStartButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
-        </Style>
-        <Style Selector="Button#StreamStopStartButton:disabled /template/ ContentPresenter">
-            <Setter Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
-            <Setter Property="Opacity" Value="0.8"/>
-        </Style>
-        <Style Selector="ProgressBar.clipping">
-            <Setter Property="BorderBrush" Value="Red"/>
-            <Setter Property="BorderThickness" Value="2"/>
-        </Style>
-    </Window.Styles>
+	<Window.Styles>
+		<!-- Add these styles -->
+		<Style Selector="Button">
+			<Setter Property="Padding" Value="12,6"/>
+			<Setter Property="CornerRadius" Value="4"/>
+			<Setter Property="Background" Value="#2D2D2D"/>
+		</Style>
 
-    <Panel>
-        <ExperimentalAcrylicBorder IsHitTestVisible="False">
-            <ExperimentalAcrylicBorder.Material>
-                <ExperimentalAcrylicMaterial BackgroundSource="Digger"
-                                           TintColor="Black"
-                                           TintOpacity="1"
-                                           MaterialOpacity="0.65"/>
-            </ExperimentalAcrylicBorder.Material>
-        </ExperimentalAcrylicBorder>
+		<Style Selector="Border">
+			<Setter Property="CornerRadius" Value="4"/>
+		</Style>
 
-        <Image Source="/Assets/goomba-logo.ico"
-               Width="32" Height="32"
-               Margin="5"
-               IsHitTestVisible="False"
-               HorizontalAlignment="Left"
-               VerticalAlignment="Top"/>
+		<Style Selector="ProgressBar">
+			<Setter Property="CornerRadius" Value="2"/>
+		</Style>
 
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
-              ColumnDefinitions="Auto,Auto,Auto,*"
-              ShowGridLines="False">
+		<Style Selector="ProgressBar /template/ Border#PART_Indicator">
+			<Setter Property="Background" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+		</Style>
+		<Style Selector="Button#StreamStopStartButton:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
+		</Style>
+		<Style Selector="Button#StreamStopStartButton:disabled /template/ ContentPresenter">
+			<Setter Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:BrushLightenConverter.Instance}}"/>
+			<Setter Property="Opacity" Value="0.8"/>
+		</Style>
+		<Style Selector="ProgressBar.clipping">
+			<Setter Property="BorderBrush" Value="Red"/>
+			<Setter Property="BorderThickness" Value="2"/>
+		</Style>
+		<!-- Add these transitions -->
+		<Style Selector="Button">
+			<Setter Property="Transitions">
+				<Transitions>
+					<BrushTransition Property="Background" Duration="0:0:0.2"/>
+					<TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+				</Transitions>
+			</Setter>
+		</Style>
 
-            <TextBlock Text="{Binding WindowTitle}"
-                      Grid.ColumnSpan="5"
-                      FontSize="16"
-                      IsHitTestVisible="False"
-                      TextAlignment="Center"
-                      Margin="10"/>
+		<Style Selector="Button:pointerover">
+			<Setter Property="RenderTransform" Value="scale(1.02)"/>
+		</Style>
+	</Window.Styles>
 
-            <!-- Stream Time Panel -->
-            <Border Grid.Row="1"
-                    Grid.ColumnSpan="5"
-                    Height="100"
-                    Margin="5,0,5,0"
-                    Background="Black">
-                
-                <Grid RowDefinitions="*,Auto">
-					
-                    <StackPanel Orientation="Horizontal"
-                              Margin="5"
-                              VerticalAlignment="Center">
-                        <TextBlock Text="Stream Time:"
-                                 Foreground="White"
-                                 Margin="10,5,5,5"
-                                 FontSize="42"
-                                 FontFamily="Cascadia Mono"/>
-                        <TextBlock Text="{Binding StreamingTime}"
-                                 Foreground="White"
-                                 Margin="5"
-                                 FontFamily="Cascadia Mono"
-                                 FontSize="42"/>
-                    </StackPanel>
-                    <TextBlock Name="ListenerCountText"
-                             Grid.Row="1"
-                             Text="{Binding ListenerCount}"
-                             IsVisible="{Binding IsListenerCountVisible}"
-                             Foreground="White"
-                             FontFamily="Cascadia Mono"
-                             FontSize="14"
-                             HorizontalAlignment="Center"
-                             Margin="5,-20,0,5"/>
-                    <Ellipse Margin="10" Width="15" Height="15" Fill="Red" 
-                             IsVisible="{Binding IsRecording}"
-                             HorizontalAlignment="Right"
-                             VerticalAlignment="Top"/>
-                </Grid>
-            </Border>
+	<Panel>
+		<ExperimentalAcrylicBorder IsHitTestVisible="False">
+			<ExperimentalAcrylicBorder.Material>
+				<ExperimentalAcrylicMaterial
+				BackgroundSource="Digger"
+				TintColor="#1F1F1F"
+				TintOpacity="0.9"
+				MaterialOpacity="0.75"
+				FallbackColor="#2F2F2F"/>
+			</ExperimentalAcrylicBorder.Material>
+		</ExperimentalAcrylicBorder>
 
-            <!-- Controls -->
-            <Button Name="StreamStopStartButton"
-                    Grid.Row="2"
-                    Command="{Binding ToggleStreamCommand}"
-                    Content="{Binding IsStreaming, Converter={StaticResource StreamButtonTextConverter}}"
-                    Background="{Binding IsStreaming, Converter={StaticResource StreamButtonColorConverter}}"
-                    IsEnabled="{Binding IsStreamButtonEnabled}"
-                    HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center"
-                    Margin="5"/>
+		<Image Source="/Assets/goomba-logo.ico"
+			   Width="32" Height="32"
+			   Margin="5"
+			   IsHitTestVisible="False"
+			   HorizontalAlignment="Left"
+			   VerticalAlignment="Top"/>
 
-            <!-- Media Controls -->
-            <Button Grid.Row="3"
-                    Command="{Binding ToggleRecordCommand}"
-                    Content="{Binding RecordButtonText}"
-                    IsEnabled="{Binding IsRecordButtonEnabled}"
-                    HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center"
-                    Margin="5,0"/>
+		<Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
+			  ColumnDefinitions="Auto,Auto,Auto,*"
+			  ShowGridLines="False">
 
-            <!-- Volume Meters -->
-            <StackPanel Grid.Row="2"
-                      Grid.Column="2"
-                      Grid.RowSpan="2"
-                      Margin="5"
-                      Spacing="5">
-                <TextBlock Text="Stream Volume"
-                         FontSize="14"
-                         TextAlignment="Center"/>
+			<TextBlock Text="{Binding WindowTitle}"
+					   Grid.ColumnSpan="5"
+					   FontSize="16"
+					   IsHitTestVisible="False"
+					   TextAlignment="Center"
+					   Margin="10"/>
 
-                <Grid Width="275" Margin="0,-3,0,0">
-                    <ProgressBar Height="14"
-                               Value="{Binding LeftDb}"
-                               Minimum="-90"
-                               Maximum="0"
-                               Classes.clipping="{Binding IsClipping}"
-                               Foreground="{Binding LeftDb, Converter={StaticResource DbBrush}}"
-                               HorizontalAlignment="Stretch"/>
-                    <Border Height="14"
-                          Width="2"
-                          Background="White"
-                          HorizontalAlignment="Left"
-                          Margin="{Binding LeftPeakPosition}"
-                          ToolTip.Tip="{Binding LeftPeakDb, StringFormat={}{0:F1} dB}"/>
-                </Grid>
+			<!-- Stream Time Panel -->
+			<Border Grid.Row="1"
+					Grid.ColumnSpan="5"
+					Height="100"
+					Margin="5,0,5,0"
+					Background="#1A1A1A"
+					BoxShadow="0 2 4 0 #40000000"
+					CornerRadius="6">
 
-                <TextBlock Text="-48 -42 -36 -30 -24 -18 -12 -6 0 dB"
-                         FontSize="14"
-                         TextAlignment="Center"
-                         Margin="6,-3"/>
+				<Grid RowDefinitions="*,Auto">
 
-                <Grid Width="275">
-                    <ProgressBar Height="14"
-                               Value="{Binding RightDb}"
-                               Minimum="-90"
-                               Maximum="0"
-                               Classes.clipping="{Binding IsClipping}"
-                               Foreground="{Binding RightDb, Converter={StaticResource DbBrush}}"
-                               HorizontalAlignment="Stretch"/>
-                    <Border Height="14"
-                          Width="2"
-                          Background="White"
-                          HorizontalAlignment="Left"
-                          Margin="{Binding RightPeakPosition}"
-                          ToolTip.Tip="{Binding RightPeakDb, StringFormat={}{0:F1} dB}"/>
-                </Grid>
-            </StackPanel>
+					<StackPanel Orientation="Horizontal"
+								Margin="5"
+								VerticalAlignment="Center">
+						<TextBlock Text="Stream Time:"
+								   Foreground="White"
+								   Margin="10,5,5,5"
+								   FontSize="42"
+								   FontFamily="Cascadia Mono"/>
+						<TextBlock Text="{Binding StreamingTime}"
+								   Foreground="White"
+								   Margin="5"
+								   FontFamily="Cascadia Mono"
+								   FontSize="42"/>
+					</StackPanel>
+					<TextBlock Name="ListenerCountText"
+							   Grid.Row="1"
+							   Text="{Binding ListenerCount}"
+							   IsVisible="{Binding IsListenerCountVisible}"
+							   Foreground="White"
+							   FontFamily="Cascadia Mono"
+							   FontSize="14"
+							   HorizontalAlignment="Center"
+							   Margin="5,-20,0,5"/>
+					<Ellipse Margin="10" Width="15" Height="15" Fill="Red"
+							 IsVisible="{Binding IsRecording}"
+							 HorizontalAlignment="Right"
+							 VerticalAlignment="Top"/>
+				</Grid>
+			</Border>
 
-            <!-- Settings and Log Controls -->
-            <StackPanel Grid.Row="2"
-                      Grid.Column="3"
-                      Grid.RowSpan="2"
-                      Margin="5"
-                      Spacing="5">
-                <Button Command="{Binding OpenSettingsCommand}"
-                        Content="Settings"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"/>
-                <Button x:Name="LogHideShowButton"
-                        Margin="0,5,0,0"
-                        Content="Hide Log"
-                        Click="ButtonClickToggleLog"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"/>
-            </StackPanel>
+			<!-- Controls -->
+			<Button Name="StreamStopStartButton"
+					Grid.Row="2"
+					Command="{Binding ToggleStreamCommand}"
+					Content="{Binding IsStreaming, Converter={StaticResource StreamButtonTextConverter}}"
+					Background="{Binding IsStreaming, Converter={StaticResource StreamButtonColorConverter}}"
+					IsEnabled="{Binding IsStreamButtonEnabled}"
+					HorizontalAlignment="Stretch"
+					HorizontalContentAlignment="Center"
+					Margin="5"/>
 
-            <!-- Input Gain -->
-            <Grid Grid.Row="4"
-                  Grid.ColumnSpan="4"
-                  Margin="5,0"
-                  ColumnDefinitions="Auto,*,Auto"
-                  RowDefinitions="Auto,Auto">
-                <TextBlock Text="Input Gain"
-                         Grid.ColumnSpan="3"
-                         HorizontalAlignment="Center"
-                         Margin="5,0,5,-10"
-                         />
-                <TextBlock Text="0dB"
-                         Grid.Row="1"
-                         FontSize="10"
-                         VerticalAlignment="Center"/>
-                <Slider Grid.Row="1"
-                        Grid.Column="1"
-                        Minimum="0"
-                        Maximum="24"
-                        Value="{Binding VolumeLevel}"
-                        Margin="5,0"/>
-                <TextBlock Text="+24dB"
-                         Grid.Row="1"
-                         Grid.Column="2"
-                         FontSize="10"
-                         VerticalAlignment="Center"/>
-            </Grid>
+			<!-- Media Controls -->
+			<Button Grid.Row="3"
+					Command="{Binding ToggleRecordCommand}"
+					Content="{Binding RecordButtonText}"
+					IsEnabled="{Binding IsRecordButtonEnabled}"
+					HorizontalAlignment="Stretch"
+					HorizontalContentAlignment="Center"
+					Margin="5,0"/>
 
-            <!-- Log Window -->
-            <TextBox Name="LogWindow"
-                     Grid.Row="5"
-                     Grid.ColumnSpan="4"
-                     Text="{Binding LogLines}"
-                     IsReadOnly="True"
-                     TextWrapping="Wrap"
-                     Margin="5,0,5,5"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-        </Grid>
-    </Panel>
+			<!-- Volume Meters -->
+			<StackPanel Grid.Row="2"
+						Grid.Column="2"
+						Grid.RowSpan="2"
+						Margin="5"
+						Spacing="5">
+				<TextBlock Text="Stream Volume"
+						   FontSize="14"
+						   TextAlignment="Center"/>
+
+				<Grid Width="275" Margin="0,-3,0,0">
+					<ProgressBar Height="14"
+								 Value="{Binding LeftDb}"
+								 Minimum="-90"
+								 Maximum="0"
+								 Classes.clipping="{Binding IsClipping}"
+								 Foreground="{Binding LeftDb, Converter={StaticResource DbBrush}}"
+								 HorizontalAlignment="Stretch"/>
+					<Border Height="14"
+							Width="2"
+							Background="White"
+							HorizontalAlignment="Left"
+							Margin="{Binding LeftPeakPosition}"
+							ToolTip.Tip="{Binding LeftPeakDb, StringFormat={}{0:F1} dB}"/>
+				</Grid>
+
+				<TextBlock Text="-48 -42 -36 -30 -24 -18 -12 -6 0 dB"
+						   FontSize="14"
+						   TextAlignment="Center"
+						   Margin="6,-3"/>
+
+				<Grid Width="275">
+					<ProgressBar Height="14"
+								 Value="{Binding RightDb}"
+								 Minimum="-90"
+								 Maximum="0"
+								 Classes.clipping="{Binding IsClipping}"
+								 Foreground="{Binding RightDb, Converter={StaticResource DbBrush}}"
+								 HorizontalAlignment="Stretch"/>
+					<Border Height="14"
+							Width="2"
+							Background="White"
+							HorizontalAlignment="Left"
+							Margin="{Binding RightPeakPosition}"
+							ToolTip.Tip="{Binding RightPeakDb, StringFormat={}{0:F1} dB}"/>
+				</Grid>
+			</StackPanel>
+
+			<!-- Settings and Log Controls -->
+			<StackPanel Grid.Row="2"
+						Grid.Column="3"
+						Grid.RowSpan="2"
+						Margin="5"
+						Spacing="5">
+				<Button Command="{Binding OpenSettingsCommand}"
+						Content="Settings"
+						HorizontalAlignment="Stretch"
+						HorizontalContentAlignment="Center"/>
+				<Button x:Name="LogHideShowButton"
+						Margin="0,5,0,0"
+						Content="Hide Log"
+						Click="ButtonClickToggleLog"
+						HorizontalAlignment="Stretch"
+						HorizontalContentAlignment="Center"/>
+			</StackPanel>
+
+			<!-- Input Gain -->
+			<Grid Grid.Row="4"
+				  Grid.ColumnSpan="4"
+				  Margin="5,0"
+				  ColumnDefinitions="Auto,*,Auto"
+				  RowDefinitions="Auto,Auto">
+				<TextBlock Text="Input Gain"
+						   Grid.ColumnSpan="3"
+						   HorizontalAlignment="Center"
+						   Margin="5,0,5,-10"
+						   />
+				<TextBlock Text="0dB"
+						   Grid.Row="1"
+						   FontSize="10"
+						   VerticalAlignment="Center"/>
+				<Slider Grid.Row="1"
+						Grid.Column="1"
+						Minimum="0"
+						Maximum="24"
+						Value="{Binding VolumeLevel}"
+						Margin="5,0"/>
+				<TextBlock Text="+24dB"
+						   Grid.Row="1"
+						   Grid.Column="2"
+						   FontSize="10"
+						   VerticalAlignment="Center"/>
+			</Grid>
+
+			<!-- Log Window -->
+			<TextBox Name="LogWindow"
+					 Grid.Row="5"
+					 Grid.ColumnSpan="4"
+					 Text="{Binding LogLines}"
+					 IsReadOnly="True"
+					 TextWrapping="Wrap"
+					 Margin="5,0,5,5"
+					 ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+		</Grid>
+	</Panel>
 </Window>

@@ -73,11 +73,9 @@ namespace GoombaCast
                 ValidateScopes = true
             });
 
-            // Initialize logging
             var loggingService = _serviceProvider.GetRequiredService<ILoggingService>();
             Logging.Initialize(loggingService);
 
-            // Store AudioEngine instance and configure from settings
             _audio = _serviceProvider.GetRequiredService<AudioEngine>();
             ConfigureAudioEngineFromSettings(_audio);
 

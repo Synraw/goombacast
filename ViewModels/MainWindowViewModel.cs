@@ -31,9 +31,9 @@ namespace GoombaCast.ViewModels
         private const int StreamingTimerInterval = 500;   // Streaming time display update rate
 
         // Dependency-injected services
-        private readonly IDialogService? _dialogService;
-        private readonly AudioEngine? _audioEngine;
-        private readonly ILoggingService? _loggingService;
+        private readonly IDialogService _dialogService;
+        private readonly AudioEngine _audioEngine;
+        private readonly ILoggingService _loggingService;
         private readonly CancellationTokenSource _cts = new();
         private bool _disposed;
 
@@ -129,10 +129,7 @@ namespace GoombaCast.ViewModels
         {
             App.Audio.LevelsAvailable += OnLevelsAvailable;
             App.Audio.ClippingDetected += OnClippingDetected;
-            if (_loggingService != null)
-            {
-                _loggingService.LogLineAdded += OnLogLineAdded;
-            }
+            _loggingService!.LogLineAdded += OnLogLineAdded;
             VolumeLevel = (int)App.Audio.GetGainLevel();
         }
 
