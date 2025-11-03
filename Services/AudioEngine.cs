@@ -400,18 +400,11 @@ namespace GoombaCast.Services
         /// <summary>
         /// Routes individual input stream buffers to the mixer
         /// </summary>
-        private sealed class InputSourceHandler : IAudioHandler
+        private sealed class InputSourceHandler(Guid sourceId, AudioMixerHandler mixer, AudioEngine engine) : IAudioHandler
         {
-            private readonly Guid _sourceId;
-            private readonly AudioMixerHandler _mixer;
-            private readonly AudioEngine _engine;
-
-            public InputSourceHandler(Guid sourceId, AudioMixerHandler mixer, AudioEngine engine)
-            {
-                _sourceId = sourceId;
-                _mixer = mixer;
-                _engine = engine;
-            }
+            private readonly Guid _sourceId = sourceId;
+            private readonly AudioMixerHandler _mixer = mixer;
+            private readonly AudioEngine _engine = engine;
 
             public string FriendlyName => "Input Router";
             public int Order => -100; // Process before mixer
@@ -430,11 +423,9 @@ namespace GoombaCast.Services
         /// <summary>
         /// Retrieves mixed audio from the mixer
         /// </summary>
-        private sealed class MixerOutputHandler : IAudioHandler
+        private sealed class MixerOutputHandler(AudioMixerHandler mixer) : IAudioHandler
         {
-            private readonly AudioMixerHandler _mixer;
-
-            public MixerOutputHandler(AudioMixerHandler mixer) => _mixer = mixer;
+            private readonly AudioMixerHandler _mixer = mixer;
 
             public string FriendlyName => "Mixer Output";
             public int Order => -50;
@@ -449,9 +440,9 @@ namespace GoombaCast.Services
         /// <summary>
         /// Virtual stream for mixer output processing - triggered by clock source
         /// </summary>
-        private sealed class VirtualMixerStream : IAudioStream
+        private sealed class VirtualMixerStream(IcecastStream icecastStream) : IAudioStream
         {
-            private readonly IcecastStream _icecastStream;
+            private readonly IcecastStream _icecastStream = icecastStream;
             private readonly WaveFormat _waveFormat = new(48000, 16, 2);
             private readonly List<IAudioHandler> _handlers = new();
             private readonly object _handlerLock = new();
@@ -463,11 +454,6 @@ namespace GoombaCast.Services
 
             public WaveFormat WaveFormat => _waveFormat;
             public bool IsRunning => _running;
-
-            public VirtualMixerStream(IcecastStream icecastStream)
-            {
-                _icecastStream = icecastStream;
-            }
 
             public void Start()
             {
