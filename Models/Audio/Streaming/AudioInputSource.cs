@@ -35,6 +35,44 @@ namespace GoombaCast.Models.Audio.Streaming
             _stream = stream;
         }
 
+        partial void OnVolumeChanged(float value)
+        {
+            SyncToSettings();
+        }
+
+        partial void OnIsMutedChanged(bool value)
+        {
+            SyncToSettings();
+        }
+
+        partial void OnIsSoloChanged(bool value)
+        {
+            SyncToSettings();
+        }
+
+        private void SyncToSettings()
+        {
+            if (_disposed) return;
+
+            try
+            {
+                var settings = SettingsService.Default.Settings;
+                var config = settings.InputSources.Find(s => s.DeviceId == DeviceId);
+                
+                if (config != null)
+                {
+                    config.Volume = Volume;
+                    // Note: mute/solo states are typically session-only,
+                    // but you can add them to InputSourceConfig if you want persistence
+                    SettingsService.Default.Save();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Failed to sync input source to settings: {ex.Message}");
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;

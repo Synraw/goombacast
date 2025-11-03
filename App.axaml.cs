@@ -121,14 +121,18 @@ namespace GoombaCast
                 _audio.SetLimiterThreshold(settings.LimiterThreshold);
 
                 // Load saved input sources from settings
+                // Create a snapshot using ToList() to avoid collection modification during enumeration
                 if (settings.InputSources != null && settings.InputSources.Count > 0)
                 {
-                    foreach (var sourceConfig in settings.InputSources)
+                    var sourceConfigs = settings.InputSources.ToList();
+                    foreach (var sourceConfig in sourceConfigs)
                     {
                         try
                         {
                             var source = _audio.AddInputSource(sourceConfig.DeviceId, sourceConfig.StreamType);
                             source.Volume = sourceConfig.Volume;
+                            source.IsMuted = sourceConfig.IsMuted;
+                            source.IsSolo = sourceConfig.IsSolo;
                             Logging.Log($"Restored input source: {source.Name}");
                         }
                         catch (Exception ex)
@@ -139,47 +143,26 @@ namespace GoombaCast
                 }
                 else
                 {
-                    // No saved sources, add default device
-                    AddDefaultInputSource(settings);
+                    // No saved sources, add default microphone as starter
+                    try
+                    {
+                        var defaultMic = Models.Audio.Streaming.InputDevice.GetDefaultInputDevice();
+                        if (defaultMic != null)
+                        {
+                            var source = _audio.AddInputSource(defaultMic.Id, AudioEngine.AudioStreamType.Microphone);
+                            Logging.Log($"Added default microphone: {source.Name}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.LogWarning($"Could not add default input device: {ex.Message}");
+                        Logging.Log("Please add audio sources in Settings.");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Logging.LogError($"Failed to initialize audio engine: {ex}");
-                throw;
-            }
-        }
-
-        private void AddDefaultInputSource(Services.AppSettings settings)
-        {
-            try
-            {
-                if (settings.AudioStreamType == AudioEngine.AudioStreamType.Microphone)
-                {
-                    var deviceId = settings.MicrophoneDeviceId;
-                    if (string.IsNullOrEmpty(deviceId))
-                    {
-                        var defaultDevice = Models.Audio.Streaming.InputDevice.GetDefaultInputDevice();
-                        deviceId = defaultDevice.Id;
-                    }
-                    _audio!.AddInputSource(deviceId, AudioEngine.AudioStreamType.Microphone);
-                    Logging.Log("Added default microphone input source");
-                }
-                else
-                {
-                    var deviceId = settings.LoopbackDeviceId;
-                    if (string.IsNullOrEmpty(deviceId))
-                    {
-                        var defaultDevice = Models.Audio.Streaming.OutputDevice.GetDefaultOutputDevice();
-                        deviceId = defaultDevice.Id;
-                    }
-                    _audio!.AddInputSource(deviceId, AudioEngine.AudioStreamType.Loopback);
-                    Logging.Log("Added default loopback input source");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logging.LogError($"Failed to add default input source: {ex.Message}");
                 throw;
             }
         }

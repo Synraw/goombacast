@@ -29,12 +29,6 @@ namespace GoombaCast.Services
             Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
             "GoombaCast Recordings"
         );
-        [JsonPropertyName("microphoneDeviceId")]
-        public string? MicrophoneDeviceId { get; set; }
-        [JsonPropertyName("loopbackDeviceId")]
-        public string? LoopbackDeviceId { get; set; }
-        [JsonPropertyName("audioStreamType")]
-        public AudioEngine.AudioStreamType AudioStreamType { get; set; } = AudioEngine.AudioStreamType.Microphone;
         [JsonPropertyName("inputSources")]
         public List<InputSourceConfig> InputSources { get; set; } = new();
 
@@ -54,12 +48,14 @@ namespace GoombaCast.Services
         {
             [JsonPropertyName("deviceId")]
             public string DeviceId { get; set; } = string.Empty;
-
             [JsonPropertyName("streamType")]
             public AudioEngine.AudioStreamType StreamType { get; set; }
-
             [JsonPropertyName("volume")]
             public float Volume { get; set; } = 1.0f;
+            [JsonPropertyName("isMuted")]
+            public bool IsMuted { get; set; }
+            [JsonPropertyName("isSolo")]
+            public bool IsSolo { get; set; }
         }
     }
 

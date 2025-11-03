@@ -5,7 +5,6 @@ using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
 using GoombaCast.Views;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,13 +16,6 @@ namespace GoombaCast.ViewModels
         private readonly SettingsService _settingsService = SettingsService.Default;
 
         public event EventHandler<string>? StreamNameChanged;
-
-        // Audio Source Properties
-        [ObservableProperty] private bool _useLoopback;
-        [ObservableProperty] private List<InputDevice> _availableMicrophones = new();
-        [ObservableProperty] private InputDevice? _selectedMicrophone;
-        [ObservableProperty] private List<OutputDevice> _availableAudioOutputs = new();
-        [ObservableProperty] private OutputDevice? _selectedAudioLoopback;
 
         // Limiter Properties
         [ObservableProperty] private bool _limiterEnabled;
@@ -44,7 +36,6 @@ namespace GoombaCast.ViewModels
         public SettingsWindowViewModel()
         {
             LoadSettings();
-            LoadDevices();
             LoadInputSources();
         }
 
@@ -53,7 +44,6 @@ namespace GoombaCast.ViewModels
             var settings = _settingsService.Settings;
 
             // Audio settings
-            UseLoopback = settings.AudioStreamType == AudioEngine.AudioStreamType.Loopback;
             LimiterEnabled = settings.LimiterEnabled;
             LimiterThreshold = settings.LimiterThreshold;
 
@@ -67,55 +57,12 @@ namespace GoombaCast.ViewModels
             RecordingDirectory = settings.RecordingDirectory ?? string.Empty;
         }
 
-        private void LoadDevices()
-        {
-            // Load microphones
-            AvailableMicrophones = InputDevice.GetActiveInputDevices();
-            var micId = _settingsService.Settings.MicrophoneDeviceId;
-            SelectedMicrophone = AvailableMicrophones.FirstOrDefault(d => d.Id == micId)
-                                ?? AvailableMicrophones.FirstOrDefault();
-
-            // Load loopback devices
-            AvailableAudioOutputs = OutputDevice.GetActiveOutputDevices();
-            var loopbackId = _settingsService.Settings.LoopbackDeviceId;
-            SelectedAudioLoopback = AvailableAudioOutputs.FirstOrDefault(d => d.Id == loopbackId)
-                                   ?? AvailableAudioOutputs.FirstOrDefault();
-        }
-
         private void LoadInputSources()
         {
             InputSources.Clear();
             foreach (var source in App.Audio.InputSources)
             {
                 InputSources.Add(source);
-            }
-        }
-
-        // Property change handlers
-        partial void OnUseLoopbackChanged(bool value)
-        {
-            var settings = _settingsService.Settings;
-            settings.AudioStreamType = value ? AudioEngine.AudioStreamType.Loopback : AudioEngine.AudioStreamType.Microphone;
-            _settingsService.Save();
-        }
-
-        partial void OnSelectedMicrophoneChanged(InputDevice? value)
-        {
-            if (value != null)
-            {
-                var settings = _settingsService.Settings;
-                settings.MicrophoneDeviceId = value.Id;
-                _settingsService.Save();
-            }
-        }
-
-        partial void OnSelectedAudioLoopbackChanged(OutputDevice? value)
-        {
-            if (value != null)
-            {
-                var settings = _settingsService.Settings;
-                settings.LoopbackDeviceId = value.Id;
-                _settingsService.Save();
             }
         }
 
@@ -194,7 +141,7 @@ namespace GoombaCast.ViewModels
         {
             // Show device selection dialog
             var dialog = new DeviceSelectionDialog();
-            var result = await dialog.ShowDialog<DeviceSelectionResult?>(GetParentWindow());
+            var result = await dialog.ShowDialog<DeviceSelectionResult?>(GetParentWindow()!);
 
             if (result != null && !string.IsNullOrEmpty(result.DeviceId))
             {
@@ -202,7 +149,6 @@ namespace GoombaCast.ViewModels
                 {
                     var source = App.Audio.AddInputSource(result.DeviceId, result.StreamType);
                     InputSources.Add(source);
-                    Logging.Log($"Added input source: {source.Name}");
                 }
                 catch (Exception ex)
                 {
@@ -218,7 +164,6 @@ namespace GoombaCast.ViewModels
             {
                 App.Audio.RemoveInputSource(source);
                 InputSources.Remove(source);
-                Logging.Log($"Removed input source: {source.Name}");
             }
         }
 

@@ -48,67 +48,6 @@
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20" Spacing="25" MaxWidth="700">
-
-                            <!-- Input Section -->
-                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="15">
-                                    <TextBlock Text="AUDIO SOURCE" Foreground="#99FFFFFF" 
-                                             FontSize="12" FontWeight="SemiBold"/>
-                                    
-                                    <!-- Audio Source Toggle -->
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <TextBlock Text="Microphone" Foreground="White" 
-                                                  VerticalAlignment="Center"/>
-                                        <ToggleSwitch IsChecked="{Binding UseLoopback}"
-                                                     OnContent=""
-                                                     OffContent=""
-                                                     Margin="5,0,-10,0"/>
-                                        <TextBlock Text="Loopback" Foreground="White" 
-                                                  VerticalAlignment="Center"/>
-                                    </StackPanel>
-
-                                    <!-- Microphone Input -->
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Microphone Device" Foreground="White"/>
-                                        <ComboBox HorizontalAlignment="Stretch"
-                                                 ItemsSource="{Binding AvailableMicrophones}"
-                                                 SelectedItem="{Binding SelectedMicrophone}"
-                                                 IsEnabled="{Binding !UseLoopback}"/>
-                                    </StackPanel>
-
-                                    <!-- Loopback Input -->
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Loopback Device" Foreground="White"/>
-                                        <ComboBox HorizontalAlignment="Stretch"
-                                                 ItemsSource="{Binding AvailableAudioOutputs}"
-                                                 SelectedItem="{Binding SelectedAudioLoopback}"
-                                                 IsEnabled="{Binding UseLoopback}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Limiter Section -->
-                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="15">
-                                    <TextBlock Text="AUDIO LIMITER" Foreground="#99FFFFFF" 
-                                             FontSize="12" FontWeight="SemiBold"/>
-                                    <CheckBox Content="Enable Limiter" IsChecked="{Binding LimiterEnabled}"
-                                            Foreground="White"/>
-                                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto">
-                                        <TextBlock Text="Threshold" Foreground="White" 
-                                                 VerticalAlignment="Center"/>
-                                        <NumericUpDown Grid.Column="1" Margin="15,0"
-                                                    Value="{Binding LimiterThreshold}"
-                                                    Minimum="-60" Maximum="0"
-                                                    Increment="1"
-                                                    Width="120"
-                                                    ToolTip.Tip="Limiter threshold in dB"/>
-                                        <TextBlock Grid.Column="2" Text="dB" Foreground="White" 
-                                                 VerticalAlignment="Center"/>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-
                             <!-- Mixer Section -->
                             <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
                                 <StackPanel Spacing="15">
@@ -169,6 +108,28 @@
                                     </ItemsControl>
                                 </StackPanel>
                             </Border>
+
+                            <!-- Limiter Section -->
+                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="15">
+                                    <TextBlock Text="AUDIO LIMITER" Foreground="#99FFFFFF" 
+                                             FontSize="12" FontWeight="SemiBold"/>
+                                    <CheckBox Content="Enable Limiter" IsChecked="{Binding LimiterEnabled}"
+                                            Foreground="White"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto">
+                                        <TextBlock Text="Threshold" Foreground="White" 
+                                                 VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="1" Margin="15,0"
+                                                    Value="{Binding LimiterThreshold}"
+                                                    Minimum="-60" Maximum="0"
+                                                    Increment="1"
+                                                    Width="120"
+                                                    ToolTip.Tip="Limiter threshold in dB"/>
+                                        <TextBlock Grid.Column="2" Text="dB" Foreground="White" 
+                                                 VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
@@ -187,7 +148,7 @@
                                     <StackPanel Spacing="10">
                                         <TextBlock Text="Server Address" Foreground="White"/>
                                         <TextBox Text="{Binding ServerAddress}"
-                                                ToolTip.Tip="Enter the server address (e.g., https://example.com:8080/web.mp3)"/>
+                                                ToolTip.Tip="Enter the server address (e.g., https://example.com:8005/station-name/source.mp3)"/>
                                     </StackPanel>
                                     
                                     <StackPanel Spacing="10">

@@ -1,25 +1,142 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:GoombaCast.ViewModels"
         x:Class="GoombaCast.Views.DeviceSelectionDialog"
         Title="Add Input Device"
-        Width="400" Height="300"
+        MinWidth="450" MinHeight="350"
+        MaxWidth="600" MaxHeight="600"
         WindowStartupLocation="CenterOwner"
-        CanResize="False">
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        Icon="/Assets/goomba-logo.ico"
+        TransparencyLevelHint="AcrylicBlur"
+        Background="Transparent"
+        ExtendClientAreaToDecorationsHint="True">
 
-    <StackPanel Margin="20" Spacing="15">
-        <TextBlock Text="Select Device Type" FontWeight="SemiBold" FontSize="16"/>
-        
-        <RadioButton x:Name="MicrophoneRadio" Content="Microphone" IsChecked="True" GroupName="DeviceType"/>
-        <RadioButton x:Name="LoopbackRadio" Content="Loopback" GroupName="DeviceType"/>
-        
-        <TextBlock Text="Select Device" FontWeight="SemiBold" FontSize="16" Margin="0,10,0,0"/>
-        
-        <ComboBox x:Name="DeviceComboBox" HorizontalAlignment="Stretch"/>
-        
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,20,0,0">
-            <Button Content="Cancel" Width="80" Click="OnCancelClick"/>
-            <Button Content="Add" Width="80" Click="OnAddClick"/>
-        </StackPanel>
-    </StackPanel>
+    <Panel>
+        <ExperimentalAcrylicBorder IsHitTestVisible="False">
+            <ExperimentalAcrylicBorder.Material>
+                <ExperimentalAcrylicMaterial
+                    BackgroundSource="Digger"
+                    TintColor="Black"
+                    TintOpacity="1"
+                    MaterialOpacity="0.65" />
+            </ExperimentalAcrylicBorder.Material>
+        </ExperimentalAcrylicBorder>
+
+        <DockPanel Margin="20" MaxWidth="550">
+            <!-- Header -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" Margin="0,0,0,20">
+                <Image Source="/Assets/goomba-logo.ico" Width="32" Height="32"
+                       IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="Add Input Device" FontSize="20" FontWeight="Light"
+                          Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Action Buttons -->
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" 
+                       HorizontalAlignment="Right" Spacing="10" Margin="0,20,0,0">
+                <Button Content="Cancel"  
+                       Click="OnCancelClick"
+                       FontSize="14"/>
+                <Button Content="Add Device" 
+                       Click="OnAddClick"
+                       Classes="accent"
+                       FontSize="14"
+                       FontWeight="SemiBold"/>
+            </StackPanel>
+
+            <!-- Content -->
+            <StackPanel Spacing="20">
+                <!-- Device Type Section -->
+                <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="DEVICE TYPE" 
+                                  Foreground="#99FFFFFF" 
+                                  FontSize="12" 
+                                  FontWeight="SemiBold"/>
+                        
+                        <StackPanel Spacing="8">
+                            <RadioButton x:Name="MicrophoneRadio" 
+                                       Content="🎤 Microphone" 
+                                       IsChecked="True" 
+                                       GroupName="DeviceType"
+                                       Foreground="White"
+                                       FontSize="14"/>
+                            <TextBlock Text="Capture audio from a microphone or line input"
+                                      Foreground="#99FFFFFF"
+                                      FontSize="11"
+                                      Margin="28,0,0,0"/>
+                            
+                            <RadioButton x:Name="LoopbackRadio" 
+                                       Content="🔊 System Audio (Loopback)" 
+                                       GroupName="DeviceType"
+                                       Foreground="White"
+                                       FontSize="14"
+                                       Margin="0,8,0,0"/>
+                            <TextBlock Text="Capture audio playing through your speakers/headphones"
+                                      Foreground="#99FFFFFF"
+                                      FontSize="11"
+                                      Margin="28,0,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Device Selection Section -->
+                <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="SELECT DEVICE" 
+                                  Foreground="#99FFFFFF" 
+                                  FontSize="12" 
+                                  FontWeight="SemiBold"/>
+                        
+                        <ComboBox x:Name="DeviceComboBox" 
+                                 HorizontalAlignment="Stretch"
+                                 MinHeight="35"
+                                 FontSize="14">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" 
+                                              Padding="5"
+                                              TextWrapping="Wrap"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        
+                        <!-- Device Info Panel (when device is selected) -->
+                        <Border x:Name="DeviceInfoPanel"
+                               Background="#10FFFFFF" 
+                               CornerRadius="4" 
+                               Padding="10"
+                               IsVisible="False">
+                            <StackPanel Spacing="5">
+                                <TextBlock x:Name="DeviceInfoText"
+                                          Foreground="#CCFFFFFF"
+                                          FontSize="12"
+                                          TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Tip Section -->
+                <Border Background="#20FFA500" 
+                       BorderBrush="#FFFFA500" 
+                       BorderThickness="1"
+                       CornerRadius="4" 
+                       Padding="12">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="💡" FontSize="16" VerticalAlignment="Top"/>
+                        <TextBlock TextWrapping="Wrap" 
+                                  Foreground="White" 
+                                  FontSize="12">
+                            <Run Text="Tip:"/>
+                            <Run Text="You can add multiple devices and control their individual volumes in the mixer." 
+                                 Foreground="#CCFFFFFF"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </DockPanel>
+    </Panel>
 </Window>
