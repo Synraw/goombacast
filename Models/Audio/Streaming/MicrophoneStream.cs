@@ -1,4 +1,5 @@
 ﻿using GoombaCast.Models.Audio.AudioHandlers;
+using GoombaCast.Models.Audio.AudioProcessing; // ADD THIS
 using GoombaCast.Services;
 using NAudio.CoreAudioApi;
 using NAudio.Lame;
@@ -252,7 +253,6 @@ namespace GoombaCast.Models.Audio.Streaming
 
             _mic.DataAvailable += (s, a) =>
             {
-                // Verify mic hasn't been disposed
                 if (micRef != _mic || !_running) return;
 
                 try
@@ -264,17 +264,16 @@ namespace GoombaCast.Models.Audio.Streaming
 
                     if (sourceBitsPerSample == 32 && nativeFormat.Encoding == WaveFormatEncoding.IeeeFloat)
                     {
-                        // 32-bit float (most common for microphones in Shared mode)
-                        convertedLength = ConvertFloat32ToStereoInt16(
+                        convertedLength = AudioFormatConverter.ConvertFloat32ToStereoInt16(
                             a.Buffer,
                             _conversionBuffer,
                             a.BytesRecorded,
-                            sourceChannels);
+                            sourceChannels,
+                            _ditherRng ??= new Random());
                     }
                     else if (sourceBitsPerSample == 16)
                     {
-                        // Already 16-bit, just convert to stereo if needed
-                        convertedLength = ConvertInt16ToStereo(
+                        convertedLength = AudioFormatConverter.ConvertInt16ToStereo(
                             a.Buffer,
                             _conversionBuffer,
                             a.BytesRecorded,
@@ -282,8 +281,7 @@ namespace GoombaCast.Models.Audio.Streaming
                     }
                     else if (sourceBitsPerSample == 24)
                     {
-                        // 24-bit integer
-                        convertedLength = ConvertInt24ToStereoInt16(
+                        convertedLength = AudioFormatConverter.ConvertInt24ToStereoInt16(
                             a.Buffer,
                             _conversionBuffer,
                             a.BytesRecorded,
@@ -301,14 +299,14 @@ namespace GoombaCast.Models.Audio.Streaming
 
                     if (sourceSampleRate != _outputFormat.SampleRate)
                     {
-                        // Apply anti-aliasing filter before resampling
-                        ApplyAntiAliasingFilter(_conversionBuffer, convertedLength, sourceSampleRate);
+                        AudioResampler.ApplyAntiAliasingFilter(_conversionBuffer, convertedLength, sourceSampleRate, ref _filterState!);
 
-                        outputLength = ResampleTo48kHz(
+                        outputLength = AudioResampler.ResampleTo48kHz(
                             _conversionBuffer,
                             convertedLength,
                             sourceSampleRate,
-                            _resampleBuffer);
+                            _resampleBuffer,
+                            ref _resampleBuffer);
                         outputBuffer = _resampleBuffer;
                     }
                     else
@@ -351,301 +349,6 @@ namespace GoombaCast.Models.Audio.Streaming
             };
 
             _mic.StartRecording();
-        }
-
-        private unsafe int ConvertFloat32ToStereoInt16(byte[] source, byte[] dest, int sourceBytes, int sourceChannels)
-        {
-            if (_ditherRng == null)
-                _ditherRng = new Random();
-
-            int samplesPerChannel = sourceBytes / (4 * sourceChannels);
-            int outputSamples = samplesPerChannel * 2;
-
-            fixed (byte* sourcePtr = source)
-            fixed (byte* destPtr = dest)
-            {
-                float* floatPtr = (float*)sourcePtr;
-                short* shortPtr = (short*)destPtr;
-
-                for (int i = 0; i < samplesPerChannel; i++)
-                {
-                    float leftSum = 0;
-                    float rightSum = 0;
-
-                    if (sourceChannels == 1)
-                    {
-                        // Mono to stereo
-                        leftSum = rightSum = floatPtr[i];
-                    }
-                    else
-                    {
-                        // Multi-channel to stereo
-                        for (int ch = 0; ch < sourceChannels; ch++)
-                        {
-                            float sample = floatPtr[i * sourceChannels + ch];
-                            if (ch % 2 == 0)
-                                leftSum += sample;
-                            else
-                                rightSum += sample;
-                        }
-
-                        leftSum /= (sourceChannels + 1) / 2;
-                        rightSum /= sourceChannels / 2;
-                    }
-
-                    leftSum = Math.Clamp(leftSum, -1.0f, 1.0f);
-                    rightSum = Math.Clamp(rightSum, -1.0f, 1.0f);
-
-                    // Add TPDF dithering
-                    float ditherL = ((float)_ditherRng.NextDouble() + (float)_ditherRng.NextDouble() - 1.0f) * 0.5f;
-                    float ditherR = ((float)_ditherRng.NextDouble() + (float)_ditherRng.NextDouble() - 1.0f) * 0.5f;
-
-                    shortPtr[i * 2] = (short)((leftSum * 32767.0f) + ditherL);
-                    shortPtr[i * 2 + 1] = (short)((rightSum * 32767.0f) + ditherR);
-                }
-            }
-
-            return outputSamples * 2;
-        }
-
-        private unsafe int ConvertInt16ToStereo(byte[] source, byte[] dest, int sourceBytes, int sourceChannels)
-        {
-            int samplesPerChannel = sourceBytes / (2 * sourceChannels);
-            int outputBytes = samplesPerChannel * 4; // Stereo 16-bit
-
-            fixed (byte* sourcePtr = source)
-            fixed (byte* destPtr = dest)
-            {
-                short* srcShort = (short*)sourcePtr;
-                short* dstShort = (short*)destPtr;
-
-                for (int i = 0; i < samplesPerChannel; i++)
-                {
-                    if (sourceChannels == 1)
-                    {
-                        // Mono to stereo
-                        short sample = srcShort[i];
-                        dstShort[i * 2] = sample;
-                        dstShort[i * 2 + 1] = sample;
-                    }
-                    else if (sourceChannels == 2)
-                    {
-                        // Already stereo
-                        dstShort[i * 2] = srcShort[i * 2];
-                        dstShort[i * 2 + 1] = srcShort[i * 2 + 1];
-                    }
-                    else
-                    {
-                        // Multi-channel to stereo - average channels
-                        int leftSum = 0;
-                        int rightSum = 0;
-                        int leftCount = 0;
-                        int rightCount = 0;
-
-                        for (int ch = 0; ch < sourceChannels; ch++)
-                        {
-                            int sample = srcShort[i * sourceChannels + ch];
-                            if (ch % 2 == 0)
-                            {
-                                leftSum += sample;
-                                leftCount++;
-                            }
-                            else
-                            {
-                                rightSum += sample;
-                                rightCount++;
-                            }
-                        }
-
-                        dstShort[i * 2] = (short)(leftSum / Math.Max(1, leftCount));
-                        dstShort[i * 2 + 1] = (short)(rightSum / Math.Max(1, rightCount));
-                    }
-                }
-            }
-
-            return outputBytes;
-        }
-
-        private unsafe int ConvertInt24ToStereoInt16(byte[] source, byte[] dest, int sourceBytes, int sourceChannels)
-        {
-            int samplesPerChannel = sourceBytes / (3 * sourceChannels);
-            int outputBytes = samplesPerChannel * 4;
-
-            fixed (byte* sourcePtr = source)
-            fixed (byte* destPtr = dest)
-            {
-                short* shortPtr = (short*)destPtr;
-
-                for (int i = 0; i < samplesPerChannel; i++)
-                {
-                    int leftSum = 0;
-                    int rightSum = 0;
-                    int leftCount = 0;
-                    int rightCount = 0;
-
-                    for (int ch = 0; ch < sourceChannels; ch++)
-                    {
-                        int byteOffset = (i * sourceChannels + ch) * 3;
-
-                        // Read 24-bit sample (little-endian)
-                        int sample24 = sourcePtr[byteOffset] |
-                                      (sourcePtr[byteOffset + 1] << 8) |
-                                      (sourcePtr[byteOffset + 2] << 16);
-
-                        // Sign extend from 24-bit to 32-bit
-                        if ((sample24 & 0x800000) != 0)
-                            sample24 |= unchecked((int)0xFF000000);
-
-                        // Convert to 16-bit (shift right by 8)
-                        int sample16 = sample24 >> 8;
-
-                        if (ch % 2 == 0 || sourceChannels == 1)
-                        {
-                            leftSum += sample16;
-                            leftCount++;
-                        }
-                        if (ch % 2 == 1 || sourceChannels == 1)
-                        {
-                            rightSum += sample16;
-                            rightCount++;
-                        }
-                    }
-
-                    shortPtr[i * 2] = (short)(leftSum / Math.Max(1, leftCount));
-                    shortPtr[i * 2 + 1] = (short)(rightSum / Math.Max(1, rightCount));
-                }
-            }
-
-            return outputBytes;
-        }
-
-        private unsafe int ResampleTo48kHz(byte[] source, int sourceBytes, int sourceSampleRate, byte[] dest)
-        {
-            const int targetSampleRate = 48000;
-
-            int sourceSamples = sourceBytes / 4;
-            double ratio = (double)sourceSampleRate / targetSampleRate;
-            int targetSamples = (int)(sourceSamples / ratio);
-            int targetBytes = targetSamples * 4;
-
-            if (dest.Length < targetBytes)
-            {
-                Array.Resize(ref _resampleBuffer, targetBytes);
-                dest = _resampleBuffer;
-            }
-
-            fixed (byte* srcPtr = source)
-            fixed (byte* dstPtr = dest)
-            {
-                short* srcShort = (short*)srcPtr;
-                short* dstShort = (short*)dstPtr;
-
-                const int sincRadius = 4;
-
-                for (int i = 0; i < targetSamples; i++)
-                {
-                    double srcPos = i * ratio;
-                    int srcIndex = (int)srcPos;
-                    double frac = srcPos - srcIndex;
-
-                    float leftSum = 0;
-                    float rightSum = 0;
-                    float weightSum = 0;
-
-                    for (int j = -sincRadius; j <= sincRadius; j++)
-                    {
-                        int sampleIdx = srcIndex + j;
-                        if (sampleIdx < 0 || sampleIdx >= sourceSamples)
-                            continue;
-
-                        double x = frac - j;
-                        float weight = (float)SincWindow(x, sincRadius);
-
-                        leftSum += srcShort[sampleIdx * 2] * weight;
-                        rightSum += srcShort[sampleIdx * 2 + 1] * weight;
-                        weightSum += weight;
-                    }
-
-                    if (weightSum > 0)
-                    {
-                        leftSum /= weightSum;
-                        rightSum /= weightSum;
-                    }
-
-                    dstShort[i * 2] = (short)Math.Clamp((int)leftSum, short.MinValue, short.MaxValue);
-                    dstShort[i * 2 + 1] = (short)Math.Clamp((int)rightSum, short.MinValue, short.MaxValue);
-                }
-            }
-
-            return targetBytes;
-        }
-
-        private static double SincWindow(double x, int radius)
-        {
-            if (Math.Abs(x) < 0.0001)
-                return 1.0;
-
-            double pix = Math.PI * x;
-            double sinc = Math.Sin(pix) / pix;
-
-            double window = 0.42 - 0.5 * Math.Cos(Math.PI * (x + radius) / radius)
-                                 + 0.08 * Math.Cos(2 * Math.PI * (x + radius) / radius);
-
-            return sinc * window;
-        }
-
-        private unsafe void ApplyAntiAliasingFilter(byte[] buffer, int length, int sampleRate)
-        {
-            const int filterOrder = 8;
-
-            // Separate filter states for left and right channels (CRITICAL FIX)
-            if (_filterState == null || _filterState.Length != filterOrder * 2)
-            {
-                _filterState = new float[filterOrder * 2];
-                Array.Clear(_filterState, 0, _filterState.Length);
-            }
-
-            int samples = length / 4; // Stereo 16-bit frames
-
-            fixed (byte* bufPtr = buffer)
-            fixed (float* statePtr = _filterState)
-            {
-                short* shortPtr = (short*)bufPtr;
-
-                // Split filter state between channels
-                float* leftState = statePtr;
-                float* rightState = statePtr + filterOrder;
-
-                // Process each stereo frame independently
-                for (int i = 0; i < samples; i++)
-                {
-                    // Process LEFT channel
-                    float leftSample = shortPtr[i * 2];
-                    float leftFiltered = leftSample * 0.5f;
-
-                    for (int j = 0; j < filterOrder - 1; j++)
-                    {
-                        leftFiltered += leftState[j] * (0.5f / filterOrder);
-                        leftState[j] = leftState[j + 1];
-                    }
-                    leftState[filterOrder - 1] = leftSample;
-
-                    shortPtr[i * 2] = (short)Math.Clamp((int)leftFiltered, short.MinValue, short.MaxValue);
-
-                    // Process RIGHT channel independently
-                    float rightSample = shortPtr[i * 2 + 1];
-                    float rightFiltered = rightSample * 0.5f;
-
-                    for (int j = 0; j < filterOrder - 1; j++)
-                    {
-                        rightFiltered += rightState[j] * (0.5f / filterOrder);
-                        rightState[j] = rightState[j + 1];
-                    }
-                    rightState[filterOrder - 1] = rightSample;
-
-                    shortPtr[i * 2 + 1] = (short)Math.Clamp((int)rightFiltered, short.MinValue, short.MaxValue);
-                }
-            }
         }
 
         private void RestartCapture()

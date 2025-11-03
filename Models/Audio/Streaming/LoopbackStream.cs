@@ -1,4 +1,5 @@
 ﻿using GoombaCast.Models.Audio.AudioHandlers;
+using GoombaCast.Models.Audio.AudioProcessing;
 using GoombaCast.Services;
 using NAudio.CoreAudioApi;
 using NAudio.Lame;
@@ -38,6 +39,7 @@ namespace GoombaCast.Models.Audio.Streaming
         private IcecastStream _iceStream = iceStream;
         private volatile bool _running = false;
         private volatile bool _deviceSwitchInProgress;
+        private Random? _ditherRng;
 
         // Fixed output format to match mixer (48kHz, 16-bit, stereo)
         private readonly WaveFormat _outputFormat = new(48000, 16, 2);
@@ -120,11 +122,13 @@ namespace GoombaCast.Models.Audio.Streaming
                         Array.Resize(ref _conversionBuffer, stereoBytes);
                     }
 
-                    int convertedLength = ConvertFloatToStereoInt16(
+                    // Update the DataAvailable handler to use the static utilities:
+                    int convertedLength = AudioFormatConverter.ConvertFloat32ToStereoInt16(
                         a.Buffer,
                         _conversionBuffer,
                         a.BytesRecorded,
-                        sourceChannels);
+                        sourceChannels,
+                        _ditherRng ??= new Random());
 
                     // Step 2: Resample from source rate to 48kHz if needed
                     byte[] outputBuffer;
@@ -133,13 +137,14 @@ namespace GoombaCast.Models.Audio.Streaming
                     if (sourceSampleRate != _outputFormat.SampleRate)
                     {
                         // Apply anti-aliasing filter before resampling
-                        ApplyAntiAliasingFilter(_conversionBuffer, convertedLength, sourceSampleRate);
+                        AudioResampler.ApplyAntiAliasingFilter(_conversionBuffer, convertedLength, sourceSampleRate, ref _filterState!);
 
-                        outputLength = ResampleTo48kHz(
+                        outputLength = AudioResampler.ResampleTo48kHz(
                             _conversionBuffer,
                             convertedLength,
                             sourceSampleRate,
-                            _resampleBuffer);
+                            _resampleBuffer,
+                            ref _resampleBuffer);
                         outputBuffer = _resampleBuffer;
                     }
                     else
@@ -217,190 +222,6 @@ namespace GoombaCast.Models.Audio.Streaming
             if (_filterState != null)
             {
                 Array.Clear(_filterState, 0, _filterState.Length);
-            }
-        }
-
-        private Random? _ditherRng;
-
-        private unsafe int ConvertFloatToStereoInt16(byte[] source, byte[] dest, int sourceBytes, int sourceChannels)
-        {
-            if (_ditherRng == null)
-                _ditherRng = new Random();
-
-            int samplesPerChannel = sourceBytes / (4 * sourceChannels);
-            int outputSamples = samplesPerChannel * 2;
-
-            fixed (byte* sourcePtr = source)
-            fixed (byte* destPtr = dest)
-            {
-                float* floatPtr = (float*)sourcePtr;
-                short* shortPtr = (short*)destPtr;
-
-                for (int i = 0; i < samplesPerChannel; i++)
-                {
-                    float leftSum = 0;
-                    float rightSum = 0;
-
-                    for (int ch = 0; ch < sourceChannels; ch++)
-                    {
-                        float sample = floatPtr[i * sourceChannels + ch];
-                        if (ch % 2 == 0)
-                            leftSum += sample;
-                        else
-                            rightSum += sample;
-                    }
-
-                    leftSum /= (sourceChannels + 1) / 2;
-                    rightSum /= sourceChannels / 2;
-
-                    leftSum = Math.Max(-1.0f, Math.Min(1.0f, leftSum));
-                    rightSum = Math.Max(-1.0f, Math.Min(1.0f, rightSum));
-
-                    // Add TPDF dithering (triangular probability density function)
-                    float ditherL = ((float)_ditherRng.NextDouble() + (float)_ditherRng.NextDouble() - 1.0f) * 0.5f;
-                    float ditherR = ((float)_ditherRng.NextDouble() + (float)_ditherRng.NextDouble() - 1.0f) * 0.5f;
-
-                    shortPtr[i * 2] = (short)((leftSum * 32767.0f) + ditherL);
-                    shortPtr[i * 2 + 1] = (short)((rightSum * 32767.0f) + ditherR);
-                }
-            }
-
-            return outputSamples * 2;
-        }
-
-        /// <summary>
-        /// Resamples 16-bit stereo PCM using Sinc interpolation for better quality
-        /// </summary>
-        private unsafe int ResampleTo48kHz(byte[] source, int sourceBytes, int sourceSampleRate, byte[] dest)
-        {
-            const int targetSampleRate = 48000;
-
-            int sourceSamples = sourceBytes / 4; // 2 channels * 2 bytes per sample
-            double ratio = (double)sourceSampleRate / targetSampleRate;
-            int targetSamples = (int)(sourceSamples / ratio);
-            int targetBytes = targetSamples * 4;
-
-            if (dest.Length < targetBytes)
-            {
-                Array.Resize(ref _resampleBuffer, targetBytes);
-                dest = _resampleBuffer;
-            }
-
-            fixed (byte* srcPtr = source)
-            fixed (byte* dstPtr = dest)
-            {
-                short* srcShort = (short*)srcPtr;
-                short* dstShort = (short*)dstPtr;
-
-                // Windowed Sinc interpolation (higher quality than linear)
-                const int sincRadius = 4; // Wider window = better quality, more CPU
-
-                for (int i = 0; i < targetSamples; i++)
-                {
-                    double srcPos = i * ratio;
-                    int srcIndex = (int)srcPos;
-                    double frac = srcPos - srcIndex;
-
-                    float leftSum = 0;
-                    float rightSum = 0;
-                    float weightSum = 0;
-
-                    // Apply windowed sinc filter
-                    for (int j = -sincRadius; j <= sincRadius; j++)
-                    {
-                        int sampleIdx = srcIndex + j;
-                        if (sampleIdx < 0 || sampleIdx >= sourceSamples)
-                            continue;
-
-                        double x = frac - j;
-                        float weight = (float)SincWindow(x, sincRadius);
-
-                        leftSum += srcShort[sampleIdx * 2] * weight;
-                        rightSum += srcShort[sampleIdx * 2 + 1] * weight;
-                        weightSum += weight;
-                    }
-
-                    // Normalize and clamp
-                    if (weightSum > 0)
-                    {
-                        leftSum /= weightSum;
-                        rightSum /= weightSum;
-                    }
-
-                    dstShort[i * 2] = (short)Math.Clamp((int)leftSum, short.MinValue, short.MaxValue);
-                    dstShort[i * 2 + 1] = (short)Math.Clamp((int)rightSum, short.MinValue, short.MaxValue);
-                }
-            }
-
-            return targetBytes;
-        }
-
-        /// <summary>
-        /// Windowed Sinc function for high-quality resampling
-        /// </summary>
-        private static double SincWindow(double x, int radius)
-        {
-            if (Math.Abs(x) < 0.0001)
-                return 1.0;
-
-            double pix = Math.PI * x;
-            double sinc = Math.Sin(pix) / pix;
-
-            // Blackman window for smoothing
-            double window = 0.42 - 0.5 * Math.Cos(Math.PI * (x + radius) / radius)
-                        + 0.08 * Math.Cos(2 * Math.PI * (x + radius) / radius);
-
-            return sinc * window;
-        }
-
-        // Fix the anti-aliasing filter to process channels independently
-        private unsafe void ApplyAntiAliasingFilter(byte[] buffer, int length, int sampleRate)
-        {
-            const int filterOrder = 8;
-
-            // Separate filter states for left and right channels
-            if (_filterState == null || _filterState.Length != filterOrder * 2)
-                _filterState = new float[filterOrder * 2];
-
-            int samples = length / 4; // Stereo 16-bit (2 bytes per sample * 2 channels)
-
-            fixed (byte* bufPtr = buffer)
-            fixed (float* statePtr = _filterState)
-            {
-                short* shortPtr = (short*)bufPtr;
-
-                float* leftState = statePtr;
-                float* rightState = statePtr + filterOrder;
-
-                // Process each stereo frame
-                for (int i = 0; i < samples; i++)
-                {
-                    // Process left channel
-                    float leftSample = shortPtr[i * 2];
-                    float leftFiltered = leftSample * 0.5f;
-
-                    for (int j = 0; j < filterOrder - 1; j++)
-                    {
-                        leftFiltered += leftState[j] * (0.5f / filterOrder);
-                        leftState[j] = leftState[j + 1];
-                    }
-                    leftState[filterOrder - 1] = leftSample;
-
-                    shortPtr[i * 2] = (short)Math.Clamp((int)leftFiltered, short.MinValue, short.MaxValue);
-
-                    // Process right channel independently
-                    float rightSample = shortPtr[i * 2 + 1];
-                    float rightFiltered = rightSample * 0.5f;
-
-                    for (int j = 0; j < filterOrder - 1; j++)
-                    {
-                        rightFiltered += rightState[j] * (0.5f / filterOrder);
-                        rightState[j] = rightState[j + 1];
-                    }
-                    rightState[filterOrder - 1] = rightSample;
-
-                    shortPtr[i * 2 + 1] = (short)Math.Clamp((int)rightFiltered, short.MinValue, short.MaxValue);
-                }
             }
         }
 
