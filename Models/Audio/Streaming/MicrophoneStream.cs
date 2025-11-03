@@ -44,16 +44,22 @@ namespace GoombaCast.Models.Audio.Streaming
         private InputDevice? _inputDevice = device ?? InputDevice.GetActiveInputDevices().FirstOrDefault();
         private volatile bool _running = false;
 
-        private readonly WaveFormat _waveFormat = new(48000, 16, 2);
+        // Fixed output format to match mixer (48kHz, 16-bit, stereo)
+        private readonly WaveFormat _outputFormat = new(48000, 16, 2);
         private volatile bool _deviceSwitchInProgress;
 
         private readonly object _micLock = new();
-
         private readonly object _handlerLock = new();
         private IAudioHandler[] _handlerSnapshot = [];
 
+        // Buffers for format conversion
+        private byte[]? _conversionBuffer = new byte[19200];
+        private byte[]? _resampleBuffer = new byte[19200];
+        private float[]? _filterState;
+        private Random? _ditherRng;
+
         public InputDevice? CurrentInputDevice => _inputDevice;
-        public WaveFormat WaveFormat => _waveFormat;
+        public WaveFormat WaveFormat => _outputFormat; // Always return 48kHz format
         public bool IsRunning => _running;
 
         public void Start()
@@ -61,17 +67,17 @@ namespace GoombaCast.Models.Audio.Streaming
             lock (_micLock)
             {
                 if (_running) return;
-                
-                if (_iceStream == null) 
+
+                if (_iceStream == null)
                     throw new InvalidOperationException("IcecastStream not initialized");
 
-                try 
+                try
                 {
-                    _mp3Writer = new LameMP3FileWriter(_iceStream, _waveFormat, 320);
+                    _mp3Writer = new LameMP3FileWriter(_iceStream, _outputFormat, 320);
                     CreateAndStartMic(notifyHandlers: true);
                     _running = true;
                 }
-                catch 
+                catch
                 {
                     // Cleanup on failure
                     _mp3Writer?.Dispose();
@@ -94,13 +100,13 @@ namespace GoombaCast.Models.Audio.Streaming
                 {
                     if (_mic != null)
                     {
-                        try 
-                        { 
-                            _mic.StopRecording(); 
+                        try
+                        {
+                            _mic.StopRecording();
                         }
                         catch (Exception ex)
                         {
-                            Logging.Log($"Error stopping recording: {ex.Message}");
+                            Logging.LogError($"Error stopping recording: {ex.Message}");
                         }
                         _mic.Dispose();
                         _mic = null;
@@ -116,7 +122,7 @@ namespace GoombaCast.Models.Audio.Streaming
                         }
                         catch (Exception ex)
                         {
-                            Logging.Log($"Error in handler OnStop: {ex.Message}");
+                            Logging.LogError($"Error in handler OnStop: {ex.Message}");
                         }
                     }
 
@@ -144,7 +150,7 @@ namespace GoombaCast.Models.Audio.Streaming
             if (string.Equals(_inputDevice?.Id, device.Id, StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            _deviceSwitchInProgress = true; 
+            _deviceSwitchInProgress = true;
             _inputDevice = device;
             RestartCapture();
             Logging.Log($"Selected input device {_inputDevice}");
@@ -163,10 +169,9 @@ namespace GoombaCast.Models.Audio.Streaming
                 _handlerSnapshot = newSnapshot;
             }
 
-            // If already running, notify handler of current format
-            if (_running && _mic != null)
+            if (_running)
             {
-                handler.OnStart(_mic.WaveFormat);
+                handler.OnStart(_outputFormat);
             }
         }
 
@@ -202,45 +207,135 @@ namespace GoombaCast.Models.Audio.Streaming
                 _mic = null;
             }
 
+            // Use native format (don't force conversion in Shared mode)
             _mic = new WasapiCapture(_inputDevice?.Device)
             {
-                ShareMode = AudioClientShareMode.Shared,
-                WaveFormat = _waveFormat
+                ShareMode = AudioClientShareMode.Shared
+                // Let device use its native format
             };
+
+            var nativeFormat = _mic.WaveFormat;
+            Logging.Log($"MicrophoneStream: Native format: {nativeFormat.SampleRate}Hz, {nativeFormat.BitsPerSample}bit, {nativeFormat.Channels}ch");
+
+            // Calculate buffer sizes
+            const int targetBufferMs = 20;
+            int sourceBytesPerSecond = nativeFormat.AverageBytesPerSecond;
+            int sourceBufferSize = (sourceBytesPerSecond * targetBufferMs) / 1000;
+            sourceBufferSize = (sourceBufferSize + 3) & ~3;
+
+            if (_conversionBuffer == null || _conversionBuffer.Length < sourceBufferSize * 2)
+            {
+                _conversionBuffer = new byte[sourceBufferSize * 2];
+            }
+
+            int outputSamplesPerChannel = (_outputFormat.SampleRate * targetBufferMs) / 1000;
+            int outputBufferSize = outputSamplesPerChannel * 4;
+            if (_resampleBuffer == null || _resampleBuffer.Length < outputBufferSize * 2)
+            {
+                _resampleBuffer = new byte[outputBufferSize * 2];
+            }
 
             // Take snapshot of handlers before attaching events
             var handlers = _handlerSnapshot;
 
             if (notifyHandlers)
             {
-                // Notify handlers capture is starting with the selected format
+                // Notify handlers capture is starting with the output format
                 foreach (var h in handlers)
-                    h.OnStart(_waveFormat);
+                    h.OnStart(_outputFormat);
             }
 
-            var micRef = _mic; // Capture in local for event handlers
+            var micRef = _mic;
+            var sourceChannels = nativeFormat.Channels;
+            var sourceSampleRate = nativeFormat.SampleRate;
+            var sourceBitsPerSample = nativeFormat.BitsPerSample;
 
             _mic.DataAvailable += (s, a) =>
             {
-                // Capture snapshot once at start of callback
-                var hs = _handlerSnapshot;
-
                 // Verify mic hasn't been disposed
-                if (micRef != _mic) return;
+                if (micRef != _mic || !_running) return;
 
-                for (int i = 0; i < hs.Length; i++)
+                try
                 {
-                    var h = hs[i];
-                    if (h.Enabled)
-                        h.ProcessBuffer(a.Buffer, 0, a.BytesRecorded, micRef.WaveFormat);
-                }
+                    var hs = _handlerSnapshot;
 
-                lock (_micLock)
-                {
-                    if (_mp3Writer != null && micRef == _mic)
+                    // Step 1: Convert from native format to 16-bit stereo at native sample rate
+                    int convertedLength;
+
+                    if (sourceBitsPerSample == 32 && nativeFormat.Encoding == WaveFormatEncoding.IeeeFloat)
                     {
-                        _mp3Writer.Write(a.Buffer, 0, a.BytesRecorded);
+                        // 32-bit float (most common for microphones in Shared mode)
+                        convertedLength = ConvertFloat32ToStereoInt16(
+                            a.Buffer,
+                            _conversionBuffer,
+                            a.BytesRecorded,
+                            sourceChannels);
                     }
+                    else if (sourceBitsPerSample == 16)
+                    {
+                        // Already 16-bit, just convert to stereo if needed
+                        convertedLength = ConvertInt16ToStereo(
+                            a.Buffer,
+                            _conversionBuffer,
+                            a.BytesRecorded,
+                            sourceChannels);
+                    }
+                    else if (sourceBitsPerSample == 24)
+                    {
+                        // 24-bit integer
+                        convertedLength = ConvertInt24ToStereoInt16(
+                            a.Buffer,
+                            _conversionBuffer,
+                            a.BytesRecorded,
+                            sourceChannels);
+                    }
+                    else
+                    {
+                        Logging.LogWarning($"Unsupported microphone bit depth: {sourceBitsPerSample}");
+                        return;
+                    }
+
+                    // Step 2: Resample to 48kHz if needed
+                    byte[] outputBuffer;
+                    int outputLength;
+
+                    if (sourceSampleRate != _outputFormat.SampleRate)
+                    {
+                        // Apply anti-aliasing filter before resampling
+                        ApplyAntiAliasingFilter(_conversionBuffer, convertedLength, sourceSampleRate);
+
+                        outputLength = ResampleTo48kHz(
+                            _conversionBuffer,
+                            convertedLength,
+                            sourceSampleRate,
+                            _resampleBuffer);
+                        outputBuffer = _resampleBuffer;
+                    }
+                    else
+                    {
+                        outputBuffer = _conversionBuffer;
+                        outputLength = convertedLength;
+                    }
+
+                    // Step 3: Send to handlers
+                    for (int i = 0; i < hs.Length; i++)
+                    {
+                        var h = hs[i];
+                        if (h.Enabled)
+                            h.ProcessBuffer(outputBuffer, 0, outputLength, _outputFormat);
+                    }
+
+                    lock (_micLock)
+                    {
+                        if (_mp3Writer != null && micRef == _mic)
+                        {
+                            _mp3Writer.Write(outputBuffer, 0, outputLength);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.LogError($"Error processing microphone audio: {ex.Message}");
                 }
             };
 
@@ -256,6 +351,301 @@ namespace GoombaCast.Models.Audio.Streaming
             };
 
             _mic.StartRecording();
+        }
+
+        private unsafe int ConvertFloat32ToStereoInt16(byte[] source, byte[] dest, int sourceBytes, int sourceChannels)
+        {
+            if (_ditherRng == null)
+                _ditherRng = new Random();
+
+            int samplesPerChannel = sourceBytes / (4 * sourceChannels);
+            int outputSamples = samplesPerChannel * 2;
+
+            fixed (byte* sourcePtr = source)
+            fixed (byte* destPtr = dest)
+            {
+                float* floatPtr = (float*)sourcePtr;
+                short* shortPtr = (short*)destPtr;
+
+                for (int i = 0; i < samplesPerChannel; i++)
+                {
+                    float leftSum = 0;
+                    float rightSum = 0;
+
+                    if (sourceChannels == 1)
+                    {
+                        // Mono to stereo
+                        leftSum = rightSum = floatPtr[i];
+                    }
+                    else
+                    {
+                        // Multi-channel to stereo
+                        for (int ch = 0; ch < sourceChannels; ch++)
+                        {
+                            float sample = floatPtr[i * sourceChannels + ch];
+                            if (ch % 2 == 0)
+                                leftSum += sample;
+                            else
+                                rightSum += sample;
+                        }
+
+                        leftSum /= (sourceChannels + 1) / 2;
+                        rightSum /= sourceChannels / 2;
+                    }
+
+                    leftSum = Math.Clamp(leftSum, -1.0f, 1.0f);
+                    rightSum = Math.Clamp(rightSum, -1.0f, 1.0f);
+
+                    // Add TPDF dithering
+                    float ditherL = ((float)_ditherRng.NextDouble() + (float)_ditherRng.NextDouble() - 1.0f) * 0.5f;
+                    float ditherR = ((float)_ditherRng.NextDouble() + (float)_ditherRng.NextDouble() - 1.0f) * 0.5f;
+
+                    shortPtr[i * 2] = (short)((leftSum * 32767.0f) + ditherL);
+                    shortPtr[i * 2 + 1] = (short)((rightSum * 32767.0f) + ditherR);
+                }
+            }
+
+            return outputSamples * 2;
+        }
+
+        private unsafe int ConvertInt16ToStereo(byte[] source, byte[] dest, int sourceBytes, int sourceChannels)
+        {
+            int samplesPerChannel = sourceBytes / (2 * sourceChannels);
+            int outputBytes = samplesPerChannel * 4; // Stereo 16-bit
+
+            fixed (byte* sourcePtr = source)
+            fixed (byte* destPtr = dest)
+            {
+                short* srcShort = (short*)sourcePtr;
+                short* dstShort = (short*)destPtr;
+
+                for (int i = 0; i < samplesPerChannel; i++)
+                {
+                    if (sourceChannels == 1)
+                    {
+                        // Mono to stereo
+                        short sample = srcShort[i];
+                        dstShort[i * 2] = sample;
+                        dstShort[i * 2 + 1] = sample;
+                    }
+                    else if (sourceChannels == 2)
+                    {
+                        // Already stereo
+                        dstShort[i * 2] = srcShort[i * 2];
+                        dstShort[i * 2 + 1] = srcShort[i * 2 + 1];
+                    }
+                    else
+                    {
+                        // Multi-channel to stereo - average channels
+                        int leftSum = 0;
+                        int rightSum = 0;
+                        int leftCount = 0;
+                        int rightCount = 0;
+
+                        for (int ch = 0; ch < sourceChannels; ch++)
+                        {
+                            int sample = srcShort[i * sourceChannels + ch];
+                            if (ch % 2 == 0)
+                            {
+                                leftSum += sample;
+                                leftCount++;
+                            }
+                            else
+                            {
+                                rightSum += sample;
+                                rightCount++;
+                            }
+                        }
+
+                        dstShort[i * 2] = (short)(leftSum / Math.Max(1, leftCount));
+                        dstShort[i * 2 + 1] = (short)(rightSum / Math.Max(1, rightCount));
+                    }
+                }
+            }
+
+            return outputBytes;
+        }
+
+        private unsafe int ConvertInt24ToStereoInt16(byte[] source, byte[] dest, int sourceBytes, int sourceChannels)
+        {
+            int samplesPerChannel = sourceBytes / (3 * sourceChannels);
+            int outputBytes = samplesPerChannel * 4;
+
+            fixed (byte* sourcePtr = source)
+            fixed (byte* destPtr = dest)
+            {
+                short* shortPtr = (short*)destPtr;
+
+                for (int i = 0; i < samplesPerChannel; i++)
+                {
+                    int leftSum = 0;
+                    int rightSum = 0;
+                    int leftCount = 0;
+                    int rightCount = 0;
+
+                    for (int ch = 0; ch < sourceChannels; ch++)
+                    {
+                        int byteOffset = (i * sourceChannels + ch) * 3;
+
+                        // Read 24-bit sample (little-endian)
+                        int sample24 = sourcePtr[byteOffset] |
+                                      (sourcePtr[byteOffset + 1] << 8) |
+                                      (sourcePtr[byteOffset + 2] << 16);
+
+                        // Sign extend from 24-bit to 32-bit
+                        if ((sample24 & 0x800000) != 0)
+                            sample24 |= unchecked((int)0xFF000000);
+
+                        // Convert to 16-bit (shift right by 8)
+                        int sample16 = sample24 >> 8;
+
+                        if (ch % 2 == 0 || sourceChannels == 1)
+                        {
+                            leftSum += sample16;
+                            leftCount++;
+                        }
+                        if (ch % 2 == 1 || sourceChannels == 1)
+                        {
+                            rightSum += sample16;
+                            rightCount++;
+                        }
+                    }
+
+                    shortPtr[i * 2] = (short)(leftSum / Math.Max(1, leftCount));
+                    shortPtr[i * 2 + 1] = (short)(rightSum / Math.Max(1, rightCount));
+                }
+            }
+
+            return outputBytes;
+        }
+
+        private unsafe int ResampleTo48kHz(byte[] source, int sourceBytes, int sourceSampleRate, byte[] dest)
+        {
+            const int targetSampleRate = 48000;
+
+            int sourceSamples = sourceBytes / 4;
+            double ratio = (double)sourceSampleRate / targetSampleRate;
+            int targetSamples = (int)(sourceSamples / ratio);
+            int targetBytes = targetSamples * 4;
+
+            if (dest.Length < targetBytes)
+            {
+                Array.Resize(ref _resampleBuffer, targetBytes);
+                dest = _resampleBuffer;
+            }
+
+            fixed (byte* srcPtr = source)
+            fixed (byte* dstPtr = dest)
+            {
+                short* srcShort = (short*)srcPtr;
+                short* dstShort = (short*)dstPtr;
+
+                const int sincRadius = 4;
+
+                for (int i = 0; i < targetSamples; i++)
+                {
+                    double srcPos = i * ratio;
+                    int srcIndex = (int)srcPos;
+                    double frac = srcPos - srcIndex;
+
+                    float leftSum = 0;
+                    float rightSum = 0;
+                    float weightSum = 0;
+
+                    for (int j = -sincRadius; j <= sincRadius; j++)
+                    {
+                        int sampleIdx = srcIndex + j;
+                        if (sampleIdx < 0 || sampleIdx >= sourceSamples)
+                            continue;
+
+                        double x = frac - j;
+                        float weight = (float)SincWindow(x, sincRadius);
+
+                        leftSum += srcShort[sampleIdx * 2] * weight;
+                        rightSum += srcShort[sampleIdx * 2 + 1] * weight;
+                        weightSum += weight;
+                    }
+
+                    if (weightSum > 0)
+                    {
+                        leftSum /= weightSum;
+                        rightSum /= weightSum;
+                    }
+
+                    dstShort[i * 2] = (short)Math.Clamp((int)leftSum, short.MinValue, short.MaxValue);
+                    dstShort[i * 2 + 1] = (short)Math.Clamp((int)rightSum, short.MinValue, short.MaxValue);
+                }
+            }
+
+            return targetBytes;
+        }
+
+        private static double SincWindow(double x, int radius)
+        {
+            if (Math.Abs(x) < 0.0001)
+                return 1.0;
+
+            double pix = Math.PI * x;
+            double sinc = Math.Sin(pix) / pix;
+
+            double window = 0.42 - 0.5 * Math.Cos(Math.PI * (x + radius) / radius)
+                                 + 0.08 * Math.Cos(2 * Math.PI * (x + radius) / radius);
+
+            return sinc * window;
+        }
+
+        private unsafe void ApplyAntiAliasingFilter(byte[] buffer, int length, int sampleRate)
+        {
+            const int filterOrder = 8;
+
+            // Separate filter states for left and right channels (CRITICAL FIX)
+            if (_filterState == null || _filterState.Length != filterOrder * 2)
+            {
+                _filterState = new float[filterOrder * 2];
+                Array.Clear(_filterState, 0, _filterState.Length);
+            }
+
+            int samples = length / 4; // Stereo 16-bit frames
+
+            fixed (byte* bufPtr = buffer)
+            fixed (float* statePtr = _filterState)
+            {
+                short* shortPtr = (short*)bufPtr;
+
+                // Split filter state between channels
+                float* leftState = statePtr;
+                float* rightState = statePtr + filterOrder;
+
+                // Process each stereo frame independently
+                for (int i = 0; i < samples; i++)
+                {
+                    // Process LEFT channel
+                    float leftSample = shortPtr[i * 2];
+                    float leftFiltered = leftSample * 0.5f;
+
+                    for (int j = 0; j < filterOrder - 1; j++)
+                    {
+                        leftFiltered += leftState[j] * (0.5f / filterOrder);
+                        leftState[j] = leftState[j + 1];
+                    }
+                    leftState[filterOrder - 1] = leftSample;
+
+                    shortPtr[i * 2] = (short)Math.Clamp((int)leftFiltered, short.MinValue, short.MaxValue);
+
+                    // Process RIGHT channel independently
+                    float rightSample = shortPtr[i * 2 + 1];
+                    float rightFiltered = rightSample * 0.5f;
+
+                    for (int j = 0; j < filterOrder - 1; j++)
+                    {
+                        rightFiltered += rightState[j] * (0.5f / filterOrder);
+                        rightState[j] = rightState[j + 1];
+                    }
+                    rightState[filterOrder - 1] = rightSample;
+
+                    shortPtr[i * 2 + 1] = (short)Math.Clamp((int)rightFiltered, short.MinValue, short.MaxValue);
+                }
+            }
         }
 
         private void RestartCapture()

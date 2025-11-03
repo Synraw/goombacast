@@ -27,19 +27,22 @@ namespace GoombaCast.Services
         private readonly AudioRecorderHandler _recorder;
         private readonly AudioMixerHandler _mixer;
         private readonly MixerOutputHandler _mixerOutput;
-        
+
         // Dedicated virtual stream for mixer output
         private readonly VirtualMixerStream _mixerStream;
-        
+
         // Null stream to prevent user input sources from writing to Icecast
         private readonly NullIcecastStream _nullStream = new();
-        
+
         private readonly List<AudioInputSource> _inputSources = new();
         private readonly object _sourcesLock = new();
 
-        // Track which sources have provided data for the current mix cycle
-        private readonly ConcurrentDictionary<Guid, bool> _sourcesReady = new();
-        private readonly object _mixTriggerLock = new();
+        // Clock source - only this source triggers mixing
+        private Guid? _clockSourceId = null;
+
+        // Buffer queues and timestamps for input sources
+        private readonly ConcurrentDictionary<Guid, Queue<(byte[] buffer, int length, long timestamp)>> _sourceBufferQueues = new();
+        private readonly ConcurrentDictionary<Guid, long> _sourceTimestamps = new();
 
         public event Action<float, float>? LevelsAvailable;
         public event Action<bool>? ClippingDetected;
@@ -76,10 +79,8 @@ namespace GoombaCast.Services
             // Initialize mixer first
             _mixer = new AudioMixerHandler();
 
-            // Create the mixer output handler that processes mixed audio
             _mixerOutput = new MixerOutputHandler(_mixer);
 
-            // Initialize post-mix processing chain
             _levelMeter = new LevelMeterAudioHandler
             {
                 CallbackContext = uiContext,
@@ -110,13 +111,10 @@ namespace GoombaCast.Services
 
             _recorder = new AudioRecorderHandler();
 
-            // Create dedicated mixer stream with the real Icecast stream
             _mixerStream = new VirtualMixerStream(_icecastStream);
-            
-            // Set up the post-mix processing chain on the dedicated mixer stream
+
             SetupPostMixProcessingChain(_mixerStream);
-            
-            // Start the mixer stream (it's always running)
+
             _mixerStream.Start();
         }
 
@@ -156,9 +154,8 @@ namespace GoombaCast.Services
                     var device = FindInputDevice(deviceId);
                     if (device == null)
                         throw new ArgumentException($"Input device not found: {deviceId}");
-                    
+
                     deviceName = device.ToString();
-                    // All user sources use null stream - they don't write to Icecast directly
                     stream = new MicrophoneStream(_nullStream, device);
                 }
                 else
@@ -166,22 +163,26 @@ namespace GoombaCast.Services
                     var device = FindOutputDevice(deviceId);
                     if (device == null)
                         throw new ArgumentException($"Output device not found: {deviceId}");
-                    
+
                     deviceName = device.ToString();
-                    // All user sources use null stream - they don't write to Icecast directly
                     stream = new LoopbackStream(_nullStream, device);
                 }
 
                 var source = new AudioInputSource(deviceName, deviceId, streamType);
                 source.SetStream(stream);
 
-                // Add the input routing handler to send audio to the mixer
-                // This handler also triggers the mixer stream to process
+                // Add input source handler that routes to mixer and triggers processing
                 stream.AddAudioHandler(new InputSourceHandler(source.Id, _mixer, this));
 
                 _inputSources.Add(source);
                 _mixer.AddInputSource(source);
-                _sourcesReady[source.Id] = false;
+
+                // Set the first source as the clock source
+                if (_clockSourceId == null)
+                {
+                    _clockSourceId = source.Id;
+                    Logging.Log($"Set clock source to: {deviceName} ({source.Id})");
+                }
 
                 SyncInputSourcesToSettings();
 
@@ -193,28 +194,23 @@ namespace GoombaCast.Services
         }
 
         /// <summary>
-        /// Called by input sources when they have data ready
+        /// Called by input sources when they have data ready - queues data and triggers mixer processing
         /// </summary>
         internal void NotifySourceReady(Guid sourceId, int bufferSize)
         {
-            lock (_mixTriggerLock)
+            // Initialize queue if needed
+            if (!_sourceBufferQueues.ContainsKey(sourceId))
             {
-                _sourcesReady[sourceId] = true;
+                _sourceBufferQueues[sourceId] = new Queue<(byte[] buffer, int length, long timestamp)>();
+            }
 
-                // Check if all active sources are ready
-                bool allReady = _inputSources.All(s => _sourcesReady.GetValueOrDefault(s.Id, false));
+            var timestamp = DateTime.UtcNow.Ticks;
+            _sourceTimestamps[sourceId] = timestamp;
 
-                if (allReady)
-                {
-                    // All sources have provided data, trigger mixing
-                    _mixerStream.TriggerMixerProcessing(bufferSize);
-
-                    // Reset ready flags for next cycle
-                    foreach (var source in _inputSources)
-                    {
-                        _sourcesReady[source.Id] = false;
-                    }
-                }
+            // Only trigger mixing from the clock source
+            if (sourceId == _clockSourceId)
+            {
+                _mixerStream.TriggerMixerProcessing(bufferSize);
             }
         }
 
@@ -229,7 +225,7 @@ namespace GoombaCast.Services
             // 3. Master gain (apply master volume)
             // 4. Limiter (prevent clipping)
             // 5. Recorder (record final output)
-            
+
             mixerStream.AddAudioHandler(_mixerOutput);
             mixerStream.AddAudioHandler(_levelMeter);
             mixerStream.AddAudioHandler(_masterGain);
@@ -247,11 +243,26 @@ namespace GoombaCast.Services
                 if (_inputSources.Remove(source))
                 {
                     _mixer.RemoveInputSource(source);
-                    _sourcesReady.TryRemove(source.Id, out _);
+
+                    // If we're removing the clock source, reassign to the first remaining source
+                    if (_clockSourceId == source.Id)
+                    {
+                        _clockSourceId = _inputSources.FirstOrDefault()?.Id;
+                        if (_clockSourceId.HasValue)
+                        {
+                            var newClockSource = _inputSources.First(s => s.Id == _clockSourceId.Value);
+                            Logging.Log($"Reassigned clock source to: {newClockSource.Name} ({_clockSourceId})");
+                        }
+                        else
+                        {
+                            Logging.Log("No clock source remaining");
+                        }
+                    }
+
                     source.Dispose();
-                    
+
                     SyncInputSourcesToSettings();
-                    
+
                     Logging.Log($"Removed input source: {source.Name}");
                 }
             }
@@ -358,10 +369,10 @@ namespace GoombaCast.Services
             await _icecastStream.Disconnect().ConfigureAwait(false);
         }
 
-        public void SetLimiterEnabled(bool enabled) 
+        public void SetLimiterEnabled(bool enabled)
             => _limiter.Enabled = enabled;
 
-        public void SetLimiterThreshold(float thresholdDb) 
+        public void SetLimiterThreshold(float thresholdDb)
             => _limiter.ThresholdDb = thresholdDb;
 
         public void StartRecording(string directory)
@@ -410,8 +421,8 @@ namespace GoombaCast.Services
             {
                 // Send audio data to mixer
                 _mixer.ProcessInputBuffer(_sourceId, buffer, offset, count);
-                
-                // Notify engine that this source is ready
+
+                // Notify engine that this source has provided data - trigger mixing
                 _engine.NotifySourceReady(_sourceId, count);
             }
         }
@@ -429,7 +440,7 @@ namespace GoombaCast.Services
             }
 
             public string FriendlyName => "Mixer Output";
-            public int Order => -50; 
+            public int Order => -50;
             public bool Enabled => true;
 
             public void OnStart(WaveFormat waveFormat)
@@ -451,7 +462,7 @@ namespace GoombaCast.Services
 
         /// <summary>
         /// Virtual stream dedicated to mixer output processing
-        /// Processes audio when all input sources are ready
+        /// Triggered by input sources when they provide data
         /// </summary>
         private class VirtualMixerStream : IAudioStream
         {
@@ -488,7 +499,7 @@ namespace GoombaCast.Services
                         handler.OnStart(_waveFormat);
                     }
                 }
-                
+
                 Logging.Log("Virtual mixer stream started");
             }
 
@@ -514,7 +525,7 @@ namespace GoombaCast.Services
             }
 
             /// <summary>
-            /// Called when all input sources are ready to mix
+            /// Called when an input source provides data - processes the mix immediately
             /// </summary>
             public void TriggerMixerProcessing(int bufferSize)
             {
@@ -556,7 +567,7 @@ namespace GoombaCast.Services
                     if (!_handlers.Contains(handler))
                     {
                         _handlers.Add(handler);
-                        
+
                         if (_running)
                         {
                             handler.OnStart(_waveFormat);

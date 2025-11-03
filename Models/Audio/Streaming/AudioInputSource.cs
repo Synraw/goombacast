@@ -58,7 +58,7 @@ namespace GoombaCast.Models.Audio.Streaming
             {
                 var settings = SettingsService.Default.Settings;
                 var config = settings.InputSources.Find(s => s.DeviceId == DeviceId);
-                
+
                 if (config != null)
                 {
                     config.Volume = Volume;

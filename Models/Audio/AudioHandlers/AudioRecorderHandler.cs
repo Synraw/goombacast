@@ -47,10 +47,22 @@ namespace GoombaCast.Models.Audio.AudioHandlers
             _enabled = false;
             if (_writer != null)
             {
-                _writer.Dispose();
-                _writer = null;
-                Logging.Log($"Stopped recording");
-                _currentFile = null;
+                try
+                {
+                    // Flush any pending data before closing (IMPORTANT)
+                    _writer.Flush();
+                }
+                catch (Exception ex)
+                {
+                    Logging.LogWarning($"Error flushing recorder: {ex.Message}");
+                }
+                finally
+                {
+                    _writer.Dispose();
+                    _writer = null;
+                    Logging.Log($"Stopped recording");
+                    _currentFile = null;
+                }
             }
         }
 
@@ -68,8 +80,17 @@ namespace GoombaCast.Models.Audio.AudioHandlers
 
         public void OnStop()
         {
-            _writer?.Dispose();
-            _writer = null;
+            if (_writer != null)
+            {
+                try
+                {
+                    _writer.Flush();
+                }
+                catch { /* ignore */ }
+                
+                _writer?.Dispose();
+                _writer = null;
+            }
         }
 
         public void Dispose()

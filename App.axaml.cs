@@ -17,11 +17,11 @@ namespace GoombaCast
     {
         private ServiceProvider? _serviceProvider;
         private static AudioEngine? _audio;
-        
-        public static AudioEngine Audio => _audio ?? 
+
+        public static AudioEngine Audio => _audio ??
             throw new InvalidOperationException("AudioEngine not initialized");
 
-        public override void Initialize() 
+        public override void Initialize()
             => AvaloniaXamlLoader.Load(this);
 
         public override void OnFrameworkInitializationCompleted()
@@ -52,9 +52,9 @@ namespace GoombaCast
 
             // Register services
             services.AddSingleton<ILoggingService, LoggingService>();
-            services.AddSingleton<AudioEngine>(sp => 
+            services.AddSingleton<AudioEngine>(sp =>
             {
-                var uiCtx = SynchronizationContext.Current ?? 
+                var uiCtx = SynchronizationContext.Current ??
                     throw new InvalidOperationException("UI SynchronizationContext not available");
                 return new AudioEngine(uiCtx);
             });
@@ -62,7 +62,7 @@ namespace GoombaCast
             services.AddTransient<SettingsWindowViewModel>();
             services.AddSingleton<IDialogService>(sp =>
             {
-                var mainWindow = desktop.MainWindow ?? 
+                var mainWindow = desktop.MainWindow ??
                     throw new InvalidOperationException("MainWindow not initialized");
                 return new DialogService(sp, mainWindow);
             });
@@ -133,7 +133,6 @@ namespace GoombaCast
                             source.Volume = sourceConfig.Volume;
                             source.IsMuted = sourceConfig.IsMuted;
                             source.IsSolo = sourceConfig.IsSolo;
-                            Logging.Log($"Restored input source: {source.Name}");
                         }
                         catch (Exception ex)
                         {
@@ -150,7 +149,6 @@ namespace GoombaCast
                         if (defaultMic != null)
                         {
                             var source = _audio.AddInputSource(defaultMic.Id, AudioEngine.AudioStreamType.Microphone);
-                            Logging.Log($"Added default microphone: {source.Name}");
                         }
                     }
                     catch (Exception ex)

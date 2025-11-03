@@ -74,7 +74,7 @@ namespace GoombaCast.ViewModels
         // Commands
         public IAsyncRelayCommand? OpenSettingsCommand { get; private set; }
         public IAsyncRelayCommand? ToggleStreamCommand { get; private set; }
-        public IRelayCommand?      ToggleRecordCommand { get; private set; }
+        public IRelayCommand? ToggleRecordCommand { get; private set; }
 
         /// <summary>
         /// Default constructor for design-time use
@@ -224,7 +224,7 @@ namespace GoombaCast.ViewModels
         public void WriteLineToLog(string message)
         {
             if (string.IsNullOrEmpty(message)) return;
-            
+
             LogLines += $"{message}\n";
 
             Dispatcher.UIThread.Post(() =>
@@ -297,7 +297,7 @@ namespace GoombaCast.ViewModels
                 settings.VolumeLevel = value;
                 SettingsService.Default.Save();
             }
-            _audioEngine?.SetMasterGainLevel(value); 
+            _audioEngine?.SetMasterGainLevel(value);
         }
 
         partial void OnLeftPeakDbChanged(float value)

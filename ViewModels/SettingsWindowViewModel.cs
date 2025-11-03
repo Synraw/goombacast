@@ -114,7 +114,7 @@ namespace GoombaCast.ViewModels
         [RelayCommand]
         private async Task SelectRecordingDirectory()
         {
-            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is 
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is
                 Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
                 ? desktop.MainWindow
                 : null;
@@ -169,7 +169,7 @@ namespace GoombaCast.ViewModels
 
         private Avalonia.Controls.Window? GetParentWindow()
         {
-            return Avalonia.Application.Current?.ApplicationLifetime is 
+            return Avalonia.Application.Current?.ApplicationLifetime is
                 Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
                 ? desktop.Windows.FirstOrDefault(w => w is Views.SettingsWindow)
                 : null;
