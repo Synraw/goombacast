@@ -130,7 +130,7 @@ namespace GoombaCast.ViewModels
             App.Audio.LevelsAvailable += OnLevelsAvailable;
             App.Audio.ClippingDetected += OnClippingDetected;
             _loggingService!.LogLineAdded += OnLogLineAdded;
-            VolumeLevel = (int)App.Audio.GetGainLevel();
+            VolumeLevel = (int)App.Audio.GetMasterGainLevel();
         }
 
         /// <summary>
@@ -297,7 +297,7 @@ namespace GoombaCast.ViewModels
                 settings.VolumeLevel = value;
                 SettingsService.Default.Save();
             }
-            _audioEngine?.SetGainLevel(value);
+            _audioEngine?.SetMasterGainLevel(value); 
         }
 
         partial void OnLeftPeakDbChanged(float value)

@@ -35,7 +35,7 @@ namespace GoombaCast
             {
                 ConfigureServices(desktop);
                 ConfigureMainWindow(desktop);
-                StartAudioEngine();
+                InitializeAudioEngine();
             }
             catch (Exception ex)
             {
@@ -77,30 +77,8 @@ namespace GoombaCast
             Logging.Initialize(loggingService);
 
             _audio = _serviceProvider.GetRequiredService<AudioEngine>();
-            ConfigureAudioEngineFromSettings(_audio);
 
             DisableAvaloniaDataAnnotationValidation();
-        }
-
-        private void ConfigureAudioEngineFromSettings(AudioEngine audio)
-        {
-            var settings = SettingsService.Default.Settings;
-            
-            audio.RecreateAudioStream(settings.AudioStreamType);
-
-            if (settings.AudioStreamType == AudioEngine.AudioStreamType.Microphone && 
-                !string.IsNullOrEmpty(settings.MicrophoneDeviceId))
-            {
-                audio.ChangeDevice(settings.MicrophoneDeviceId);
-            }
-            else if (settings.AudioStreamType == AudioEngine.AudioStreamType.Loopback && 
-                     !string.IsNullOrEmpty(settings.LoopbackDeviceId))
-            {
-                audio.ChangeDevice(settings.LoopbackDeviceId);
-            }
-
-            audio.SetLimiterEnabled(settings.LimiterEnabled);
-            audio.SetLimiterThreshold(settings.LimiterThreshold);
         }
 
         private void ConfigureMainWindow(IClassicDesktopStyleApplicationLifetime desktop)
@@ -129,15 +107,79 @@ namespace GoombaCast
             }
         }
 
-        private void StartAudioEngine()
+        private void InitializeAudioEngine()
         {
+            if (_audio == null)
+                throw new InvalidOperationException("AudioEngine not initialized");
+
             try
             {
-                _audio?.Start();
+                var settings = SettingsService.Default.Settings;
+
+                // Configure limiter
+                _audio.SetLimiterEnabled(settings.LimiterEnabled);
+                _audio.SetLimiterThreshold(settings.LimiterThreshold);
+
+                // Load saved input sources from settings
+                if (settings.InputSources != null && settings.InputSources.Count > 0)
+                {
+                    foreach (var sourceConfig in settings.InputSources)
+                    {
+                        try
+                        {
+                            var source = _audio.AddInputSource(sourceConfig.DeviceId, sourceConfig.StreamType);
+                            source.Volume = sourceConfig.Volume;
+                            Logging.Log($"Restored input source: {source.Name}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.LogWarning($"Failed to restore input source {sourceConfig.DeviceId}: {ex.Message}");
+                        }
+                    }
+                }
+                else
+                {
+                    // No saved sources, add default device
+                    AddDefaultInputSource(settings);
+                }
             }
             catch (Exception ex)
             {
-                Logging.LogError($"Failed to start audio engine: {ex}");
+                Logging.LogError($"Failed to initialize audio engine: {ex}");
+                throw;
+            }
+        }
+
+        private void AddDefaultInputSource(Services.AppSettings settings)
+        {
+            try
+            {
+                if (settings.AudioStreamType == AudioEngine.AudioStreamType.Microphone)
+                {
+                    var deviceId = settings.MicrophoneDeviceId;
+                    if (string.IsNullOrEmpty(deviceId))
+                    {
+                        var defaultDevice = Models.Audio.Streaming.InputDevice.GetDefaultInputDevice();
+                        deviceId = defaultDevice.Id;
+                    }
+                    _audio!.AddInputSource(deviceId, AudioEngine.AudioStreamType.Microphone);
+                    Logging.Log("Added default microphone input source");
+                }
+                else
+                {
+                    var deviceId = settings.LoopbackDeviceId;
+                    if (string.IsNullOrEmpty(deviceId))
+                    {
+                        var defaultDevice = Models.Audio.Streaming.OutputDevice.GetDefaultOutputDevice();
+                        deviceId = defaultDevice.Id;
+                    }
+                    _audio!.AddInputSource(deviceId, AudioEngine.AudioStreamType.Loopback);
+                    Logging.Log("Added default loopback input source");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Failed to add default input source: {ex.Message}");
                 throw;
             }
         }

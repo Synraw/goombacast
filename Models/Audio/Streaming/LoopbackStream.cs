@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 
 namespace GoombaCast.Models.Audio.Streaming
 {
-
     public sealed class OutputDevice(MMDevice output)
     {
         public MMDevice Device { get; } = output;

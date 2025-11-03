@@ -15,7 +15,7 @@ namespace GoombaCast.Models.Audio.Streaming
     public class IcecastStreamConfig
     {
         public string Host { get; set; } = "localhost";
-        public int Port { get; set; } = 8000;
+        public int Port { get; set; } = 8005;
         public string Mount { get; set; } = "/";
         public string User { get; set; } = "source";
         public string Pass { get; set; } = "hackme";
@@ -47,7 +47,7 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public static IcecastStreamConfig FromSettings(SettingsService settings)
         {
-            var uri = new Uri(settings.Settings.ServerAddress ?? "http://localhost:8000/stream.mp3");
+            var uri = new Uri(settings.Settings.ServerAddress ?? "http://localhost:8005/station-name/source.mp3");
             return new IcecastStreamConfig
             {
                 Host = uri.Host,

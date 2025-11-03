@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:GoombaCast.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -106,6 +106,67 @@
                                         <TextBlock Grid.Column="2" Text="dB" Foreground="White" 
                                                  VerticalAlignment="Center"/>
                                     </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Mixer Section -->
+                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="15">
+                                    <TextBlock Text="AUDIO MIXER" Foreground="#99FFFFFF" 
+                                             FontSize="12" FontWeight="SemiBold"/>
+                                    
+                                    <!-- Add Device Button -->
+                                    <Button Content="Add Input Device" 
+                                            Command="{Binding AddInputSourceCommand}"
+                                            HorizontalAlignment="Stretch"/>
+                                    
+                                    <!-- Input Sources List -->
+                                    <ItemsControl ItemsSource="{Binding InputSources}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#10FFFFFF" CornerRadius="4" Padding="10" Margin="0,5">
+                                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                                        <!-- Device Name -->
+                                                        <TextBlock Text="{Binding Name}" 
+                                                                 Foreground="White" 
+                                                                 FontWeight="SemiBold"/>
+                                                        
+                                                        <!-- Remove Button -->
+                                                        <Button Grid.Column="1" 
+                                                                Content="✕" 
+                                                                Command="{Binding $parent[ItemsControl].((vm:SettingsWindowViewModel)DataContext).RemoveInputSourceCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                Width="30" Height="30"/>
+                                                        
+                                                        <!-- Volume Slider -->
+                                                        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" 
+                                                                  Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
+                                                            <TextBlock Text="Volume:" Foreground="White" 
+                                                                     VerticalAlignment="Center"/>
+                                                            <Slider Value="{Binding Volume}" 
+                                                                   Minimum="0" Maximum="2" 
+                                                                   Width="150"
+                                                                   TickFrequency="0.1"/>
+                                                            <TextBlock Text="{Binding Volume, StringFormat={}{0:P0}}" 
+                                                                     Foreground="White" 
+                                                                     VerticalAlignment="Center"
+                                                                     Width="40"/>
+                                                            
+                                                            <!-- Mute/Solo Buttons -->
+                                                            <ToggleButton Content="M" 
+                                                                        IsChecked="{Binding IsMuted}"
+                                                                        Width="30" Height="30"
+                                                                        ToolTip.Tip="Mute"/>
+                                                            <ToggleButton Content="S" 
+                                                                        IsChecked="{Binding IsSolo}"
+                                                                        Width="30" Height="30"
+                                                                        ToolTip.Tip="Solo"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

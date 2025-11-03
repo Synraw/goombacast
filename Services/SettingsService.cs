@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,7 +13,7 @@ namespace GoombaCast.Services
         [JsonPropertyName("volumeLevel")]
         public int VolumeLevel { get; set; }
         [JsonPropertyName("serverAddress")]
-        public string ServerAddress { get; set; } = "http://localhost:8000/";
+        public string ServerAddress { get; set; } = "http://localhost:8005/";
         [JsonPropertyName("streamName")]
         public string StreamName { get; set; } = "My Stream";
         [JsonPropertyName("userName")]
@@ -34,6 +35,8 @@ namespace GoombaCast.Services
         public string? LoopbackDeviceId { get; set; }
         [JsonPropertyName("audioStreamType")]
         public AudioEngine.AudioStreamType AudioStreamType { get; set; } = AudioEngine.AudioStreamType.Microphone;
+        [JsonPropertyName("inputSources")]
+        public List<InputSourceConfig> InputSources { get; set; } = new();
 
         public bool IsValid()
         {
@@ -45,6 +48,19 @@ namespace GoombaCast.Services
         public bool IsServerAddressValid()
             => Uri.TryCreate(ServerAddress, UriKind.Absolute, out var uri) &&
                (uri.Scheme == "http" || uri.Scheme == "https");
+
+
+        public class InputSourceConfig
+        {
+            [JsonPropertyName("deviceId")]
+            public string DeviceId { get; set; } = string.Empty;
+
+            [JsonPropertyName("streamType")]
+            public AudioEngine.AudioStreamType StreamType { get; set; }
+
+            [JsonPropertyName("volume")]
+            public float Volume { get; set; } = 1.0f;
+        }
     }
 
     public sealed class SettingsService : IDisposable
@@ -202,7 +218,7 @@ namespace GoombaCast.Services
         public void Dispose()
         {
             if (_isDisposed) return;
-            
+
             _isDisposed = true;
             _lock.Dispose();
         }

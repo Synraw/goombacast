@@ -1,6 +1,9 @@
 using GoombaCast.Models.Audio.AudioHandlers;
 using GoombaCast.Models.Audio.Streaming;
+using NAudio.Wave;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,16 +19,27 @@ namespace GoombaCast.Services
 
         private readonly IcecastStream _icecastStream;
         private readonly LevelMeterAudioHandler _levelMeter;
-        private readonly GainAudioHandler _gain;
+        private readonly GainAudioHandler _masterGain;
         private readonly LimiterAudioHandler _limiter;
         private readonly AudioRecorderHandler _recorder;
+        private readonly AudioMixerHandler _mixer;
         
-        private IAudioStream? _audioStream;
-        private AudioStreamType _streamType;
-        private readonly object _streamLock = new();
+        private readonly List<AudioInputSource> _inputSources = new();
+        private readonly object _sourcesLock = new();
 
         public event Action<float, float>? LevelsAvailable;
         public event Action<bool>? ClippingDetected;
+
+        public IReadOnlyList<AudioInputSource> InputSources
+        {
+            get
+            {
+                lock (_sourcesLock)
+                {
+                    return _inputSources.ToList();
+                }
+            }
+        }
 
         public AudioEngine(SynchronizationContext? uiContext)
         {
@@ -45,6 +59,9 @@ namespace GoombaCast.Services
 
             _icecastStream = new IcecastStream();
 
+            // Initialize mixer first
+            _mixer = new AudioMixerHandler();
+
             _levelMeter = new LevelMeterAudioHandler
             {
                 CallbackContext = uiContext,
@@ -62,7 +79,7 @@ namespace GoombaCast.Services
                 ClippingDetected?.Invoke(isClipping);
             };
 
-            _gain = new GainAudioHandler
+            _masterGain = new GainAudioHandler
             {
                 GainDb = settings.VolumeLevel
             };
@@ -76,15 +93,20 @@ namespace GoombaCast.Services
             _recorder = new AudioRecorderHandler();
         }
 
-        public void SetGainLevel(float gainDb)
-            => _gain.GainDb = gainDb;
+        public void SetMasterGainLevel(float gainDb)
+            => _masterGain.GainDb = gainDb;
 
-        public float GetGainLevel()
-            => _gain.GainDb;
+        public float GetMasterGainLevel()
+            => _masterGain.GainDb;
+
+        public void SetMasterVolume(float volume)
+            => _mixer.MasterVolume = volume;
+
+        public float GetMasterVolume()
+            => _mixer.MasterVolume;
 
         public bool IsBroadcasting => _icecastStream.IsOpen;
         public bool IsRecording => _recorder.IsRecording;
-        public AudioStreamType CurrentStreamType => _streamType;
 
         public static InputDevice? FindInputDevice(string deviceId)
             => InputDevice.GetActiveInputDevices().Find(d => d.Id == deviceId);
@@ -92,112 +114,160 @@ namespace GoombaCast.Services
         public static OutputDevice? FindOutputDevice(string deviceId)
             => OutputDevice.GetActiveOutputDevices().Find(d => d.Id == deviceId);
 
-        public void RecreateAudioStream(AudioStreamType streamType)
+        /// <summary>
+        /// Adds a new input source to the mixer
+        /// </summary>
+        public AudioInputSource AddInputSource(string deviceId, AudioStreamType streamType)
         {
-            if(streamType == _streamType && _audioStream != null) //dont need to re-create the underlying stream engine, just the device
-                return;
-
-            lock (_streamLock)
+            lock (_sourcesLock)
             {
-                try
+                string deviceName;
+                IAudioStream stream;
+
+                if (streamType == AudioStreamType.Microphone)
                 {
-                    if (_audioStream != null)
-                    {
-                        _audioStream.Stop();
-                        _audioStream.Dispose();
-                        _audioStream = null;
-                    }
-
-                    var settings = SettingsService.Default.Settings;
-                    string? deviceId = streamType == AudioStreamType.Microphone
-                        ? settings.MicrophoneDeviceId
-                        : settings.LoopbackDeviceId;
-
-                    _streamType = streamType;
-
-                    // Create the appropriate stream type
-                    if (_streamType == AudioStreamType.Microphone)
-                    {
-                        var inputDevice = FindInputDevice(deviceId ?? string.Empty);
-                        _audioStream = new MicrophoneStream(_icecastStream, inputDevice);
-                    }
-                    else
-                    {
-                        var outputDevice = FindOutputDevice(deviceId ?? string.Empty);
-                        _audioStream = new LoopbackStream(_icecastStream, outputDevice);
-                    }
-
-                    // Add handlers
-                    _audioStream.AddAudioHandler(_levelMeter);
-                    _audioStream.AddAudioHandler(_gain);
-                    _audioStream.AddAudioHandler(_limiter);
-                    _audioStream.AddAudioHandler(_recorder);
-
-                    _audioStream.Start();
+                    var device = FindInputDevice(deviceId);
+                    if (device == null)
+                        throw new ArgumentException($"Input device not found: {deviceId}");
+                    
+                    deviceName = device.ToString();
+                    stream = new MicrophoneStream(_icecastStream, device);
                 }
-                catch (Exception ex)
+                else
                 {
-                    Logging.Log($"Error recreating audio stream: {ex.Message}");
-                    throw;
+                    var device = FindOutputDevice(deviceId);
+                    if (device == null)
+                        throw new ArgumentException($"Output device not found: {deviceId}");
+                    
+                    deviceName = device.ToString();
+                    stream = new LoopbackStream(_icecastStream, device);
+                }
+
+                var source = new AudioInputSource(deviceName, deviceId, streamType);
+                source.SetStream(stream);
+
+                // Add handlers to the stream
+                stream.AddAudioHandler(new InputSourceHandler(source.Id, _mixer));
+                stream.AddAudioHandler(_levelMeter);
+                stream.AddAudioHandler(_masterGain);
+                stream.AddAudioHandler(_limiter);
+                stream.AddAudioHandler(_recorder);
+
+                _inputSources.Add(source);
+                _mixer.AddInputSource(source);
+
+                stream.Start();
+
+                Logging.Log($"Added input source: {deviceName}");
+                return source;
+            }
+        }
+
+        /// <summary>
+        /// Removes an input source from the mixer
+        /// </summary>
+        public void RemoveInputSource(AudioInputSource source)
+        {
+            lock (_sourcesLock)
+            {
+                if (_inputSources.Remove(source))
+                {
+                    _mixer.RemoveInputSource(source);
+                    source.Dispose();
+                    Logging.Log($"Removed input source: {source.Name}");
                 }
             }
         }
 
-        public bool ChangeDevice(string deviceId)
+        /// <summary>
+        /// Removes an input source by ID
+        /// </summary>
+        public void RemoveInputSource(Guid sourceId)
         {
-            if (string.IsNullOrEmpty(deviceId)) return false;
-            if (_audioStream == null) return false;
-
-            lock (_streamLock)
+            lock (_sourcesLock)
             {
+                var source = _inputSources.FirstOrDefault(s => s.Id == sourceId);
+                if (source != null)
+                {
+                    RemoveInputSource(source);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Changes the device for an existing input source
+        /// </summary>
+        public bool ChangeInputSourceDevice(Guid sourceId, string newDeviceId)
+        {
+            lock (_sourcesLock)
+            {
+                var source = _inputSources.FirstOrDefault(s => s.Id == sourceId);
+                if (source == null) return false;
+
                 try
                 {
-                    bool wasRunning = _audioStream.IsRunning;
-                    
-                    // Always stop before changing device
-                    if (wasRunning)
-                    {
-                        _audioStream.Stop();
-                    }
+                    // Stop and dispose old stream
+                    source.Stream?.Stop();
+                    source.Stream?.Dispose();
 
-                    bool result = false;
-                    if (_streamType == AudioStreamType.Microphone)
+                    // Create new stream with new device
+                    IAudioStream newStream;
+                    string deviceName;
+
+                    if (source.StreamType == AudioStreamType.Microphone)
                     {
-                        var device = FindInputDevice(deviceId);
-                        if (device != null)
-                        {
-                            result = _audioStream.ChangeDevice(device.Id);
-                        }
+                        var device = FindInputDevice(newDeviceId);
+                        if (device == null) return false;
+                        deviceName = device.ToString();
+                        newStream = new MicrophoneStream(_icecastStream, device);
                     }
                     else
                     {
-                        var device = FindOutputDevice(deviceId);
-                        if (device != null)
-                        {
-                            result = _audioStream.ChangeDevice(device.Id);
-                        }
+                        var device = FindOutputDevice(newDeviceId);
+                        if (device == null) return false;
+                        deviceName = device.ToString();
+                        newStream = new LoopbackStream(_icecastStream, device);
                     }
 
-                    if (wasRunning && result)
-                    {
-                        _audioStream.Start();
-                    }
+                    // Update source
+                    source.DeviceId = newDeviceId;
+                    source.Name = deviceName;
+                    source.SetStream(newStream);
 
-                    return result;
+                    // Re-add handlers
+                    newStream.AddAudioHandler(new InputSourceHandler(source.Id, _mixer));
+                    newStream.AddAudioHandler(_levelMeter);
+                    newStream.AddAudioHandler(_masterGain);
+                    newStream.AddAudioHandler(_limiter);
+                    newStream.AddAudioHandler(_recorder);
+
+                    // Start new stream
+                    newStream.Start();
+
+                    Logging.Log($"Changed device for {source.Name} to {deviceName}");
+                    return true;
                 }
                 catch (Exception ex)
                 {
-                    Logging.Log($"Error changing device: {ex.Message}");
+                    Logging.LogError($"Failed to change device: {ex.Message}");
                     return false;
                 }
             }
         }
 
-        public void Start() 
-            => _audioStream?.Start();
-        
-        public void Stop() 
-            => _audioStream?.Stop();
+        /// <summary>
+        /// Clears all input sources
+        /// </summary>
+        public void ClearInputSources()
+        {
+            lock (_sourcesLock)
+            {
+                foreach (var source in _inputSources.ToList())
+                {
+                    RemoveInputSource(source);
+                }
+            }
+        }
 
         public async Task StartBroadcastAsync()
         {
@@ -212,15 +282,6 @@ namespace GoombaCast.Services
         public async Task StopBroadcast()
         {
             await _icecastStream.Disconnect().ConfigureAwait(false);
-        }
-
-        public void StartBroadcast()
-        {
-            if (!_icecastStream.IsOpen)
-            {
-                _icecastStream.Configure(IcecastStreamConfig.FromSettings(SettingsService.Default));
-            }
-            _icecastStream.Connect().GetAwaiter().GetResult();
         }
 
         public void SetLimiterEnabled(bool enabled) 
@@ -241,8 +302,32 @@ namespace GoombaCast.Services
 
         public void Dispose()
         {
-            _audioStream?.Dispose();
+            ClearInputSources();
             _recorder.Dispose();
+        }
+
+        /// <summary>
+        /// Helper handler that routes input to the mixer
+        /// </summary>
+        private class InputSourceHandler : IAudioHandler
+        {
+            private readonly Guid _sourceId;
+            private readonly AudioMixerHandler _mixer;
+
+            public InputSourceHandler(Guid sourceId, AudioMixerHandler mixer)
+            {
+                _sourceId = sourceId;
+                _mixer = mixer;
+            }
+
+            public string FriendlyName => "Input Source Router";
+            public int Order => -2; // Before mixer
+            public bool Enabled => true;
+
+            public void ProcessBuffer(byte[] buffer, int offset, int count, WaveFormat waveFormat)
+            {
+                _mixer.ProcessInputBuffer(_sourceId, buffer, offset, count);
+            }
         }
     }
 }

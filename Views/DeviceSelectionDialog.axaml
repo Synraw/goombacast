@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GoombaCast.ViewModels"
+        x:Class="GoombaCast.Views.DeviceSelectionDialog"
+        Title="Add Input Device"
+        Width="400" Height="300"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <StackPanel Margin="20" Spacing="15">
+        <TextBlock Text="Select Device Type" FontWeight="SemiBold" FontSize="16"/>
+        
+        <RadioButton x:Name="MicrophoneRadio" Content="Microphone" IsChecked="True" GroupName="DeviceType"/>
+        <RadioButton x:Name="LoopbackRadio" Content="Loopback" GroupName="DeviceType"/>
+        
+        <TextBlock Text="Select Device" FontWeight="SemiBold" FontSize="16" Margin="0,10,0,0"/>
+        
+        <ComboBox x:Name="DeviceComboBox" HorizontalAlignment="Stretch"/>
+        
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,20,0,0">
+            <Button Content="Cancel" Width="80" Click="OnCancelClick"/>
+            <Button Content="Add" Width="80" Click="OnAddClick"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
