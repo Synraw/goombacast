@@ -95,6 +95,49 @@ namespace GoombaCast.Models.Audio.AudioProcessing
         }
 
         /// <summary>
+        /// Stretches audio data to fit requested size using linear interpolation
+        /// </summary>
+        public static unsafe void StretchAudio(byte[] source, byte[] dest, int destBytes)
+        {
+            int sourceSamples = source.Length / 4; // Stereo 16-bit
+            int destSamples = destBytes / 4;
+
+            double ratio = (double)sourceSamples / destSamples;
+
+            fixed (byte* srcPtr = source)
+            fixed (byte* dstPtr = dest)
+            {
+                short* srcShort = (short*)srcPtr;
+                short* dstShort = (short*)dstPtr;
+
+                for (int i = 0; i < destSamples; i++)
+                {
+                    double srcPos = i * ratio;
+                    int srcIndex = (int)srcPos;
+                    double frac = srcPos - srcIndex;
+
+                    if (srcIndex + 1 < sourceSamples)
+                    {
+                        // Linear interpolation
+                        short leftA = srcShort[srcIndex * 2];
+                        short leftB = srcShort[(srcIndex + 1) * 2];
+                        short rightA = srcShort[srcIndex * 2 + 1];
+                        short rightB = srcShort[(srcIndex + 1) * 2 + 1];
+
+                        dstShort[i * 2] = (short)(leftA + (leftB - leftA) * frac);
+                        dstShort[i * 2 + 1] = (short)(rightA + (rightB - rightA) * frac);
+                    }
+                    else
+                    {
+                        // At the end, just copy last sample
+                        dstShort[i * 2] = srcShort[srcIndex * 2];
+                        dstShort[i * 2 + 1] = srcShort[srcIndex * 2 + 1];
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Applies anti-aliasing filter before resampling to prevent aliasing artifacts
         /// </summary>
         public static unsafe void ApplyAntiAliasingFilter(

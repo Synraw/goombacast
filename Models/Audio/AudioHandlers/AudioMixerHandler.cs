@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
+using GoombaCast.Models.Audio.AudioProcessing;
 
 namespace GoombaCast.Models.Audio.AudioHandlers
 {
@@ -130,11 +131,8 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     }
                     else if (availableBytes >= MinBufferBytes)
                     {
-                        // We have minimum data - stretch what we have to fit
-                        // This provides lower latency at the cost of slight quality degradation
                         data = new byte[requestedBytes];
 
-                        // Simple sample stretching (repeat samples to fill gaps)
                         double ratio = (double)availableBytes / requestedBytes;
                         byte[] availableData = new byte[availableBytes];
 
@@ -144,7 +142,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                         }
 
                         // Stretch by linear interpolation
-                        StretchAudio(availableData, data, requestedBytes);
+                        AudioResampler.StretchAudio(availableData, data, requestedBytes);
 
                         UnderrunCount++;
 
@@ -158,7 +156,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     }
                     else
                     {
-                        // Not enough data at all - return silence
                         data = new byte[requestedBytes];
                         Array.Clear(data, 0, requestedBytes);
 
@@ -170,50 +167,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                             _lastStatsLog = DateTime.UtcNow;
                         }
 
-                        return true; // Return true but with silence
-                    }
-                }
-            }
-
-            /// <summary>
-            /// Stretches audio data to fit requested size using linear interpolation
-            /// </summary>
-            private unsafe void StretchAudio(byte[] source, byte[] dest, int destBytes)
-            {
-                int sourceSamples = source.Length / 4; // Stereo 16-bit
-                int destSamples = destBytes / 4;
-
-                double ratio = (double)sourceSamples / destSamples;
-
-                fixed (byte* srcPtr = source)
-                fixed (byte* dstPtr = dest)
-                {
-                    short* srcShort = (short*)srcPtr;
-                    short* dstShort = (short*)dstPtr;
-
-                    for (int i = 0; i < destSamples; i++)
-                    {
-                        double srcPos = i * ratio;
-                        int srcIndex = (int)srcPos;
-                        double frac = srcPos - srcIndex;
-
-                        if (srcIndex + 1 < sourceSamples)
-                        {
-                            // Linear interpolation
-                            short leftA = srcShort[srcIndex * 2];
-                            short leftB = srcShort[(srcIndex + 1) * 2];
-                            short rightA = srcShort[srcIndex * 2 + 1];
-                            short rightB = srcShort[(srcIndex + 1) * 2 + 1];
-
-                            dstShort[i * 2] = (short)(leftA + (leftB - leftA) * frac);
-                            dstShort[i * 2 + 1] = (short)(rightA + (rightB - rightA) * frac);
-                        }
-                        else
-                        {
-                            // At the end, just copy last sample
-                            dstShort[i * 2] = srcShort[srcIndex * 2];
-                            dstShort[i * 2 + 1] = srcShort[srcIndex * 2 + 1];
-                        }
+                        return true;
                     }
                 }
             }
