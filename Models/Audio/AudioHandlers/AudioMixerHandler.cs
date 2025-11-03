@@ -46,9 +46,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
             private const int TargetBufferBytes = 7680; // ~40ms @ 48kHz stereo (target)
             private const int MaxBufferBytes = 19200;   // ~100ms @ 48kHz stereo (maximum)
 
-            public int UnderrunCount { get; private set; }
-            public int OverflowCount { get; private set; }
-            private DateTime _lastStatsLog = DateTime.UtcNow;
 
             public SourceBuffer(AudioInputSource source)
             {
@@ -64,8 +61,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                 lock (_buffer)
                 {
                     _buffer.Clear();
-                    UnderrunCount = 0;
-                    OverflowCount = 0;
                     LastUpdateTime = DateTime.UtcNow.Ticks;
                 }
             }
@@ -89,15 +84,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                             for (int i = 0; i < excessBytes; i++)
                             {
                                 _buffer.Dequeue();
-                            }
-
-                            OverflowCount++;
-
-                            // Log stats every 2 seconds
-                            if ((DateTime.UtcNow - _lastStatsLog).TotalSeconds >= 2)
-                            {
-                                Logging.LogWarning($"[{Source.Name}] Buffer adjusted: dropped {excessBytes} bytes to prevent overflow (overflows: {OverflowCount}, underruns: {UnderrunCount})");
-                                _lastStatsLog = DateTime.UtcNow;
                             }
                         }
                     }
@@ -144,29 +130,12 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                         // Stretch by linear interpolation
                         AudioResampler.StretchAudio(availableData, data, requestedBytes);
 
-                        UnderrunCount++;
-
-                        if ((DateTime.UtcNow - _lastStatsLog).TotalSeconds >= 2)
-                        {
-                            Logging.LogWarning($"[{Source.Name}] Buffer underrun: stretched {availableBytes} to {requestedBytes} bytes (overflows: {OverflowCount}, underruns: {UnderrunCount})");
-                            _lastStatsLog = DateTime.UtcNow;
-                        }
-
                         return true;
                     }
-                    else
+                    else // send silence
                     {
                         data = new byte[requestedBytes];
                         Array.Clear(data, 0, requestedBytes);
-
-                        UnderrunCount++;
-
-                        if ((DateTime.UtcNow - _lastStatsLog).TotalSeconds >= 2)
-                        {
-                            Logging.LogWarning($"[{Source.Name}] Severe underrun: only {availableBytes} bytes available, returning silence");
-                            _lastStatsLog = DateTime.UtcNow;
-                        }
-
                         return true;
                     }
                 }

@@ -58,14 +58,8 @@ namespace GoombaCast
                     throw new InvalidOperationException("UI SynchronizationContext not available");
                 return new AudioEngine(uiCtx);
             });
-            services.AddTransient<MainWindowViewModel>();
             services.AddTransient<SettingsWindowViewModel>();
-            services.AddSingleton<IDialogService>(sp =>
-            {
-                var mainWindow = desktop.MainWindow ??
-                    throw new InvalidOperationException("MainWindow not initialized");
-                return new DialogService(sp, mainWindow);
-            });
+            services.AddSingleton<MainWindowViewModel>();
 
             _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
             {

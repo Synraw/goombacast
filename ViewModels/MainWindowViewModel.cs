@@ -7,6 +7,8 @@ using CommunityToolkit.Mvvm.Input;
 using GoombaCast.Extensions;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
+using GoombaCast.Views;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,9 +33,9 @@ namespace GoombaCast.ViewModels
         private const int StreamingTimerInterval = 500;   // Streaming time display update rate
 
         // Dependency-injected services
-        private readonly IDialogService _dialogService;
         private readonly AudioEngine _audioEngine;
         private readonly ILoggingService _loggingService;
+        private readonly IServiceProvider _serviceProvider; // ADD THIS
         private readonly CancellationTokenSource _cts = new();
         private bool _disposed;
 
@@ -85,14 +87,17 @@ namespace GoombaCast.ViewModels
         /// Initializes a new instance of the MainWindowViewModel with required services
         /// </summary>
         /// <param name="audioEngine">The audio engine service for stream handling</param>
-        /// <param name="dialogService">The dialog service for showing windows</param>
         /// <param name="loggingService">The logging service for application events</param>
+        /// <param name="serviceProvider">Service provider for resolving dependencies</param>
         /// <exception cref="ArgumentNullException">Thrown if any required service is null</exception>
-        public MainWindowViewModel(AudioEngine audioEngine, IDialogService dialogService, ILoggingService loggingService)
+        public MainWindowViewModel(
+            AudioEngine audioEngine, 
+            ILoggingService loggingService,
+            IServiceProvider serviceProvider)
         {
             _audioEngine = audioEngine ?? throw new ArgumentNullException(nameof(audioEngine));
-            _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
             _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
+            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
             InitializeViewModel();
             SetupCommands();
@@ -284,8 +289,29 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private async Task OpenSettingsAsync()
         {
-            if (_dialogService != null)
-                await _dialogService.ShowSettingsDialogAsync().ConfigureAwait(false);
+            var viewModel = _serviceProvider.GetRequiredService<SettingsWindowViewModel>();
+
+            var dialog = new SettingsWindow
+            {
+                DataContext = viewModel
+            };
+
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                // Subscribe to stream name changes
+                void OnStreamNameChanged(object? s, string name) => UpdateWindowTitle(name);
+                viewModel.StreamNameChanged += OnStreamNameChanged;
+
+                try
+                {
+                    await dialog.ShowDialog(desktop.MainWindow!).ConfigureAwait(false);
+                }
+                finally
+                {
+                    // Clean up event subscription
+                    viewModel.StreamNameChanged -= OnStreamNameChanged;
+                }
+            }
         }
 
         // Generated property change handlers
