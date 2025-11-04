@@ -277,7 +277,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                                 for (int i = 0; i < sampleCount; i++)
                                 {
                                     short s = shortPtr[i];
-                                    float sample = s < 0 ? s / AudioFormatConverter.MaxInt16ValueFloat : s / AudioFormatConverter.MaxInt16ValueFloat;
+                                    float sample = s < 0 ? s / AudioFormatConverter.MaxInt16ValueFloat + 1.0f : s / AudioFormatConverter.MaxInt16ValueFloat;
                                     mixPtr[i] += sample * sourceVolume;
                                 }
                             }
