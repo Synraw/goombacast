@@ -2,11 +2,13 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
 using GoombaCast.ViewModels;
 using GoombaCast.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -114,48 +116,60 @@ namespace GoombaCast
                 _audio.SetLimiterEnabled(settings.LimiterEnabled);
                 _audio.SetLimiterThreshold(settings.LimiterThreshold);
 
-                // Load saved input sources from settings
-                // Create a snapshot using ToList() to avoid collection modification during enumeration
-                if (settings.InputSources != null && settings.InputSources.Count > 0)
-                {
-                    var sourceConfigs = settings.InputSources.ToList();
-                    foreach (var sourceConfig in sourceConfigs)
-                    {
-                        try
-                        {
-                            var source = _audio.AddInputSource(sourceConfig.DeviceId, sourceConfig.StreamType);
-                            source.Volume = sourceConfig.Volume;
-                            source.IsMuted = sourceConfig.IsMuted;
-                            source.IsSolo = sourceConfig.IsSolo;
-                        }
-                        catch (Exception ex)
-                        {
-                            Logging.LogWarning($"Failed to restore input source {sourceConfig.DeviceId}: {ex.Message}");
-                        }
-                    }
-                }
-                else
-                {
-                    // No saved sources, add default microphone as starter
-                    try
-                    {
-                        var defaultMic = Models.Audio.Streaming.InputDevice.GetDefaultInputDevice();
-                        if (defaultMic != null)
-                        {
-                            var source = _audio.AddInputSource(defaultMic.Id, AudioEngine.AudioStreamType.Microphone);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logging.LogWarning($"Could not add default input device: {ex.Message}");
-                        Logging.Log("Please add audio sources in Settings.");
-                    }
-                }
+                // Restore or initialize input sources
+                RestoreInputSources(settings);
             }
             catch (Exception ex)
             {
                 Logging.LogError($"Failed to initialize audio engine: {ex}");
                 throw;
+            }
+        }
+
+        private void RestoreInputSources(AppSettings settings)
+        {
+            if (settings.InputSources != null && settings.InputSources.Count > 0)
+            {
+                RestoreSavedInputSources(settings.InputSources);
+            }
+            else
+            {
+                AddDefaultInputSource();
+            }
+        }
+
+        private void RestoreSavedInputSources(List<AppSettings.InputSourceConfig> sourceConfigs)
+        {
+            foreach (var sourceConfig in sourceConfigs.ToList())
+            {
+                try
+                {
+                    var source = _audio!.AddInputSource(sourceConfig.DeviceId, sourceConfig.StreamType);
+                    source.Volume = sourceConfig.Volume;
+                    source.IsMuted = sourceConfig.IsMuted;
+                    source.IsSolo = sourceConfig.IsSolo;
+                }
+                catch (Exception ex)
+                {
+                    Logging.LogWarning($"Failed to restore input source {sourceConfig.DeviceId}: {ex.Message}");
+                }
+            }
+        }
+
+        private void AddDefaultInputSource()
+        {
+            try
+            {
+                var defaultMic = InputDevice.GetDefaultInputDevice();
+                if (defaultMic != null)
+                {
+                    _audio!.AddInputSource(defaultMic.Id, AudioEngine.AudioStreamType.Microphone);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.LogWarning($"Could not add default input device: {ex.Message}");
+                Logging.Log("Please add audio sources in Settings.");
             }
         }
 

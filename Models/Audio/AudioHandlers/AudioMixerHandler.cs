@@ -277,7 +277,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                                 for (int i = 0; i < sampleCount; i++)
                                 {
                                     short s = shortPtr[i];
-                                    float sample = s < 0 ? s / 32768f : s / 32767f;
+                                    float sample = s < 0 ? s / AudioFormatConverter.MaxInt16ValueFloat : s / AudioFormatConverter.MaxInt16ValueFloat;
                                     mixPtr[i] += sample * sourceVolume;
                                 }
                             }
@@ -304,7 +304,7 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                                 sample = (float)Math.Tanh(sample * 1.2f) * 0.95f;
                             }
 
-                            int intSample = (int)(sample * 32767f);
+                            int intSample = (int)(sample * AudioFormatConverter.MaxInt16ValueFloat);
                             shortPtr[i] = (short)Math.Clamp(intSample, short.MinValue, short.MaxValue);
                         }
                     }

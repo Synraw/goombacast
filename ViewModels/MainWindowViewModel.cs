@@ -73,11 +73,6 @@ namespace GoombaCast.ViewModels
         [ObservableProperty] private string _recordButtonText = "Start Recording";
         [ObservableProperty] private bool _isRecordButtonEnabled = true;
 
-        // Commands
-        public IAsyncRelayCommand? OpenSettingsCommand { get; private set; }
-        public IAsyncRelayCommand? ToggleStreamCommand { get; private set; }
-        public IRelayCommand? ToggleRecordCommand { get; private set; }
-
         /// <summary>
         /// Default constructor for design-time use
         /// </summary>
@@ -102,7 +97,6 @@ namespace GoombaCast.ViewModels
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
             InitializeViewModel();
-            SetupCommands();
             SetupEventHandlers();
             InitializeTimers();
             ScanInputDevices();
@@ -117,16 +111,6 @@ namespace GoombaCast.ViewModels
             var settings = SettingsService.Default.Settings;
             VolumeLevel = settings.VolumeLevel;
             WindowTitle = $"GoombaCast: {settings.StreamName}";
-        }
-
-        /// <summary>
-        /// Sets up command bindings for UI interactions
-        /// </summary>
-        private void SetupCommands()
-        {
-            OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
-            ToggleStreamCommand = new AsyncRelayCommand(ToggleStream);
-            ToggleRecordCommand = new RelayCommand(ToggleRecording);
         }
 
         /// <summary>
@@ -289,6 +273,7 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Opens the settings dialog
         /// </summary>
+        [RelayCommand]
         private async Task OpenSettingsAsync()
         {
             var viewModel = _serviceProvider.GetRequiredService<SettingsWindowViewModel>();
@@ -337,6 +322,7 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Toggles the streaming state between starting and stopping
         /// </summary>
+        [RelayCommand]
         private async Task ToggleStream()
         {
             var settings = SettingsService.Default.Settings;
@@ -369,6 +355,11 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private async Task StartStreaming(string streamName)
         {
+            if(App.Audio.InputSources.Count == 0)
+            {
+                Logging.LogWarning("No input sources available to start streaming.");
+                return;
+            }
             await App.Audio.StartBroadcastAsync().ConfigureAwait(true);
             StartTimer();
             IsStreaming = true;
@@ -391,8 +382,15 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Toggles the recording state between starting and stopping
         /// </summary>
-        private void ToggleRecording()
+        [RelayCommand]
+        private void ToggleRecord()
         {
+            if(App.Audio.InputSources.Count == 0)
+            {
+                Logging.LogWarning("No input sources available to start recording.");
+                return;
+            }
+
             var settings = SettingsService.Default.Settings;
             IsRecordButtonEnabled = false;
 

@@ -86,7 +86,10 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                 {
                     _writer.Flush();
                 }
-                catch { /* ignore */ }
+                catch (IOException e)
+                {
+                    Logging.LogError($"Error flushing recorder on stop: {e.Message}");
+                }
                 
                 _writer?.Dispose();
                 _writer = null;

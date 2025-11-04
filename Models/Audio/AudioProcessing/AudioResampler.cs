@@ -17,7 +17,7 @@ namespace GoombaCast.Models.Audio.AudioProcessing
             byte[] dest,
             ref byte[] resampleBuffer)
         {
-            const int targetSampleRate = 48000;
+            const int targetSampleRate = 48000; //48khz
 
             int sourceSamples = sourceBytes / 4;
             double ratio = (double)sourceSampleRate / targetSampleRate;

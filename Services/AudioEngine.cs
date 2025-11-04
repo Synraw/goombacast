@@ -14,7 +14,7 @@ namespace GoombaCast.Services
     /// <summary>
     /// Core audio engine responsible for managing input sources, mixing, and output streaming
     /// </summary>
-    public sealed class AudioEngine : IDisposable
+    public sealed class AudioEngine : IDisposable, IAsyncDisposable
     {
         public enum AudioStreamType
         {
@@ -384,12 +384,19 @@ namespace GoombaCast.Services
         // Disposal
         // ============================================================================
 
-        public void Dispose()
+        public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        public async ValueTask DisposeAsync()
         {
             ClearInputSources();
             _mixerStream?.Stop();
+
+            if (_recorder != null)
+            {
+                await Task.Run(() => _recorder.Dispose());
+            }
+
             _mixerStream?.Dispose();
-            _recorder?.Dispose();
             _nullStream?.Dispose();
         }
 
