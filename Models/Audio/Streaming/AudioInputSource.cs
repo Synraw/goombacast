@@ -62,8 +62,8 @@ namespace GoombaCast.Models.Audio.Streaming
                 if (config != null)
                 {
                     config.Volume = Volume;
-                    // Note: mute/solo states are typically session-only,
-                    // but you can add them to InputSourceConfig if you want persistence
+                    config.IsMuted = IsMuted;
+                    config.IsSolo = IsSolo;
                     SettingsService.Default.Save();
                 }
             }
@@ -78,6 +78,7 @@ namespace GoombaCast.Models.Audio.Streaming
             if (_disposed) return;
             _stream?.Dispose();
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

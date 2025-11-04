@@ -260,11 +260,12 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                 {
                     var source = sourceBuffer.Source;
 
-                    if (source.IsMuted || (hasSolo && !source.IsSolo))
+                    if (!sourceBuffer.TryConsume(count, out var inputData))
                         continue;
 
-                    // Always try to consume - the buffer will handle underruns gracefully
-                    if (sourceBuffer.TryConsume(count, out var inputData))
+                    bool shouldMix = !source.IsMuted && (!hasSolo || source.IsSolo);
+
+                    if (shouldMix)
                     {
                         float sourceVolume = source.Volume;
 

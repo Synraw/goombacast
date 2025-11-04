@@ -209,8 +209,8 @@ namespace GoombaCast.Services
                 var source = new AudioInputSource(deviceName, deviceId, streamType);
                 source.SetStream(stream);
 
-                // Route this source's audio to the mixer
-                stream.AddAudioHandler(new InputSourceHandler(source.Id, _mixer, this));
+                // Route this source's audio to the mixer 
+                stream.AddAudioHandler(new InputSourceHandler(source.Id, _mixer, this, source));
 
                 _inputSources.Add(source);
                 _mixer.AddInputSource(source);
@@ -290,7 +290,7 @@ namespace GoombaCast.Services
                     source.SetStream(newStream);
 
                     // Route to mixer
-                    newStream.AddAudioHandler(new InputSourceHandler(source.Id, _mixer, this));
+                    newStream.AddAudioHandler(new InputSourceHandler(source.Id, _mixer, this, source));
                     newStream.Start();
 
                     Logging.Log($"Changed device for {source.Name} to {deviceName}");
@@ -407,23 +407,56 @@ namespace GoombaCast.Services
         /// <summary>
         /// Routes individual input stream buffers to the mixer
         /// </summary>
-        private sealed class InputSourceHandler(Guid sourceId, AudioMixerHandler mixer, AudioEngine engine) : IAudioHandler
+        private sealed class InputSourceHandler : IAudioHandler
         {
-            private readonly Guid _sourceId = sourceId;
-            private readonly AudioMixerHandler _mixer = mixer;
-            private readonly AudioEngine _engine = engine;
+            private readonly Guid _sourceId;
+            private readonly AudioMixerHandler _mixer;
+            private readonly AudioEngine _engine;
+            private readonly AudioInputSource _source;
 
             public string FriendlyName => "Input Router";
-            public int Order => -100; // Process before mixer
+            public int Order => -100;
             public bool Enabled => true;
+
+            public InputSourceHandler(Guid sourceId, AudioMixerHandler mixer, AudioEngine engine, AudioInputSource source)
+            {
+                _sourceId = sourceId;
+                _mixer = mixer;
+                _engine = engine;
+                _source = source;
+            }
 
             public void OnStart(WaveFormat waveFormat) { }
             public void OnStop() { }
 
             public void ProcessBuffer(byte[] buffer, int offset, int count, WaveFormat waveFormat)
             {
-                _mixer.ProcessInputBuffer(_sourceId, buffer, offset, count);
+                bool shouldProcess = ShouldProcessSource();
+
+                if (shouldProcess)
+                {
+                    _mixer.ProcessInputBuffer(_sourceId, buffer, offset, count);
+                }
+                else
+                {
+                    // Feed silence to keep the buffer in sync
+                    byte[] silence = new byte[count];
+                    Array.Clear(silence, 0, count);
+                    _mixer.ProcessInputBuffer(_sourceId, silence, 0, count);
+                }
+
                 _engine.NotifySourceReady(_sourceId, count);
+            }
+
+            private bool ShouldProcessSource()
+            {
+                if (_source.IsMuted) return false;
+
+                var allSources = _engine.InputSources; // Returns a copy, thread-safe
+                bool hasSolo = allSources.Any(s => s.IsSolo);
+                if (hasSolo) return _source.IsSolo;
+                
+                return true;
             }
         }
 
