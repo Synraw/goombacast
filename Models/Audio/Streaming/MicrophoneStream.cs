@@ -7,6 +7,7 @@ using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using static System.Windows.Forms.DataFormats;
 
 namespace GoombaCast.Models.Audio.Streaming
 {
@@ -209,10 +210,8 @@ namespace GoombaCast.Models.Audio.Streaming
                 ShareMode = AudioClientShareMode.Shared
             };
 
-            var nativeFormat = _mic.WaveFormat;
-            LogNativeFormat(nativeFormat);
-
             // Allocate buffers based on native and output formats
+            var nativeFormat = _mic.WaveFormat;
             InitializeBuffers(nativeFormat);
 
             // Notify handlers if requested
@@ -234,11 +233,6 @@ namespace GoombaCast.Models.Audio.Streaming
                 _mic.Dispose();
                 _mic = null;
             }
-        }
-
-        private void LogNativeFormat(WaveFormat format)
-        {
-            Logging.Log($"MicrophoneStream: Native format: {format.SampleRate}Hz, {format.BitsPerSample}bit, {format.Channels}ch");
         }
 
         private void InitializeBuffers(WaveFormat nativeFormat)
