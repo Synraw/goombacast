@@ -10,12 +10,12 @@ namespace GoombaCast.Models.Audio.AudioProcessing
         /// <summary>
         /// Maximum value for signed 16-bit audio samples
         /// </summary>
-        public static readonly float MaxInt16ValueFloat = 32767.0f; //Int16.MaxValue;
+        public const float MaxInt16ValueFloat = 32767.0f; //Int16.MaxValue;
 
         /// <summary>
         /// Minimum value for signed 16-bit audio samples
         /// </summary>
-        private static readonly float MinInt16ValueFloat = -32768.0f; //Int16.MinValue;
+        private const float MinInt16ValueFloat = -32768f;
 
         /// <summary>
         /// Converts 32-bit float audio to 16-bit stereo integer format with TPDF dithering

@@ -67,131 +67,186 @@ namespace GoombaCast.Models.Audio.Streaming
             }
 
             _loopback = new WasapiLoopbackCapture(_outputDevice?.Device);
-
             _mp3Writer = new LameMP3FileWriter(_iceStream, _outputFormat, 320);
 
-            int bufferMilliseconds = 100;
-            int bytesPerSecond = _loopback.WaveFormat.AverageBytesPerSecond;
-            int bufferSize = (bytesPerSecond * bufferMilliseconds) / 1000;
-            _conversionBuffer = new byte[bufferSize];
+            InitializeBuffers();
+            
+            if (notifyHandlers)
+            {
+                NotifyHandlersStart();
+            }
 
-            // Align buffer to sample boundaries for optimal processing
-            const int targetBufferMs = 20; // 20ms chunks for low latency
+            AttachEventHandlers();
+            _loopback.StartRecording();
+        }
+
+        private void InitializeBuffers()
+        {
+            var settings = SettingsService.Default.Settings;
+            var sourceFormat = _loopback!.WaveFormat;
+            
+            // Calculate conversion buffer size
+            int conversionBufferSize = CalculateBufferSize(
+                sourceFormat.AverageBytesPerSecond, 
+                settings.ConversionBufferMs);
+            _conversionBuffer = new byte[conversionBufferSize];
+
+            // Calculate target buffer size for processing
+            int targetBufferMs = settings.AudioBufferMs;
             int targetSamplesPerChannel = (_outputFormat.SampleRate * targetBufferMs) / 1000;
+            int alignedBufferSize = targetSamplesPerChannel * 4; // 4 bytes for stereo 16-bit
 
-            // Ensure buffer is multiple of sample size (4 bytes for stereo 16-bit)
-            int alignedBufferSize = targetSamplesPerChannel * 4;
-
-            int sourceBytesPerSecond = _loopback.WaveFormat.AverageBytesPerSecond;
-            int sourceBufferSize = (sourceBytesPerSecond * targetBufferMs) / 1000;
-            sourceBufferSize = (sourceBufferSize + 3) & ~3; // Align to 4-byte boundary
-
-            int requiredSize = (sourceBytesPerSecond * targetBufferMs) / 1000;
+            // Ensure conversion buffer is large enough
+            int requiredSize = CalculateBufferSize(
+                sourceFormat.AverageBytesPerSecond, 
+                targetBufferMs);
+            
             if (_conversionBuffer.Length < requiredSize * 2)
             {
                 _conversionBuffer = new byte[requiredSize * 2];
             }
+            
             _resampleBuffer = new byte[alignedBufferSize * 2];
+        }
 
+        private static int CalculateBufferSize(int bytesPerSecond, int milliseconds)
+        {
+            int size = (bytesPerSecond * milliseconds) / 1000;
+            return (size + 3) & ~3; // Align to 4-byte boundary
+        }
+
+        private void NotifyHandlersStart()
+        {
             var handlers = _handlerSnapshot;
-
-            if (notifyHandlers)
+            foreach (var handler in handlers)
             {
-                foreach (var h in handlers)
-                {
-                    h.OnStart(_outputFormat);
-                }
+                handler.OnStart(_outputFormat);
             }
+        }
 
-            var loopbackRef = _loopback;
-            var sourceChannels = _loopback.WaveFormat.Channels;
-            var sourceSampleRate = _loopback.WaveFormat.SampleRate;
+        private void AttachEventHandlers()
+        {
+            var loopbackRef = _loopback!;
+            var sourceChannels = _loopback!.WaveFormat.Channels;
+            var sourceSampleRate = _loopback!.WaveFormat.SampleRate;
 
-            _dataAvailableHandler = (s, a) =>
-            {
-                if (loopbackRef != _loopback || !_running) return;
+            _dataAvailableHandler = (s, a) => ProcessAudioData(
+                a, 
+                loopbackRef, 
+                sourceChannels, 
+                sourceSampleRate);
 
-                try
-                {
-                    var hs = _handlerSnapshot;
-
-                    // Step 1: Convert float32 to int16 at source sample rate
-                    int stereoBytes = (a.BytesRecorded / sourceChannels) * 2;
-                    if (_conversionBuffer.Length < stereoBytes)
-                    {
-                        Array.Resize(ref _conversionBuffer, stereoBytes);
-                    }
-
-                    // Update the DataAvailable handler to use the static utilities:
-                    int convertedLength = AudioFormatConverter.ConvertFloat32ToStereoInt16(
-                        a.Buffer,
-                        _conversionBuffer,
-                        a.BytesRecorded,
-                        sourceChannels,
-                        _ditherRng ??= new Random());
-
-                    // Step 2: Resample from source rate to 48kHz if needed
-                    byte[] outputBuffer;
-                    int outputLength;
-
-                    if (sourceSampleRate != _outputFormat.SampleRate)
-                    {
-                        // Apply anti-aliasing filter before resampling
-                        AudioResampler.ApplyAntiAliasingFilter(_conversionBuffer, convertedLength, sourceSampleRate, ref _filterState!);
-
-                        outputLength = AudioResampler.ResampleTo48kHz(
-                            _conversionBuffer,
-                            convertedLength,
-                            sourceSampleRate,
-                            _resampleBuffer,
-                            ref _resampleBuffer);
-                        outputBuffer = _resampleBuffer;
-                    }
-                    else
-                    {
-                        outputBuffer = _conversionBuffer;
-                        outputLength = convertedLength;
-                    }
-
-                    // Step 3: Send to handlers
-                    for (int i = 0; i < hs.Length; i++)
-                    {
-                        var h = hs[i];
-                        if (h.Enabled)
-                        {
-                            h.ProcessBuffer(outputBuffer, 0, outputLength, _outputFormat);
-                        }
-                    }
-
-                    lock (_loopbackLock)
-                    {
-                        if (_mp3Writer != null && loopbackRef == _loopback)
-                        {
-                            _mp3Writer.Write(outputBuffer, 0, outputLength);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.LogError($"Error processing loopback audio: {ex.Message}");
-                    Stop();
-                }
-            };
-
-            _recordingStoppedHandler = (s, a) =>
-            {
-                if (_deviceSwitchInProgress) return;
-
-                if (loopbackRef == _loopback)
-                {
-                    Stop();
-                }
-            };
+            _recordingStoppedHandler = (s, a) => HandleRecordingStopped(loopbackRef);
 
             _loopback.DataAvailable += _dataAvailableHandler;
             _loopback.RecordingStopped += _recordingStoppedHandler;
+        }
 
-            _loopback.StartRecording();
+        private void ProcessAudioData(
+            WaveInEventArgs args, 
+            WasapiLoopbackCapture loopbackRef, 
+            int sourceChannels, 
+            int sourceSampleRate)
+        {
+            if (loopbackRef != _loopback || !_running) return;
+
+            try
+            {
+                var handlers = _handlerSnapshot;
+
+                // Step 1: Convert to stereo Int16
+                var (outputBuffer, outputLength) = ConvertAndResample(
+                    args.Buffer, 
+                    args.BytesRecorded, 
+                    sourceChannels, 
+                    sourceSampleRate);
+
+                // Step 2: Send to handlers
+                ProcessHandlers(handlers, outputBuffer, outputLength);
+
+                // Step 3: Write to MP3
+                WriteToMp3(outputBuffer, outputLength, loopbackRef);
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Error processing loopback audio: {ex.Message}");
+                Stop();
+            }
+        }
+
+        private (byte[] buffer, int length) ConvertAndResample(
+            byte[] sourceBuffer, 
+            int bytesRecorded, 
+            int sourceChannels, 
+            int sourceSampleRate)
+        {
+            // Convert float32 to int16 stereo
+            int stereoBytes = (bytesRecorded / sourceChannels) * 2;
+            if (_conversionBuffer!.Length < stereoBytes)
+            {
+                Array.Resize(ref _conversionBuffer, stereoBytes);
+            }
+
+            int convertedLength = AudioFormatConverter.ConvertFloat32ToStereoInt16(
+                sourceBuffer,
+                _conversionBuffer,
+                bytesRecorded,
+                sourceChannels,
+                _ditherRng ??= new Random());
+
+            // Resample if needed
+            if (sourceSampleRate != _outputFormat.SampleRate)
+            {
+                AudioResampler.ApplyAntiAliasingFilter(
+                    _conversionBuffer, 
+                    convertedLength, 
+                    sourceSampleRate, 
+                    ref _filterState!);
+
+                int outputLength = AudioResampler.ResampleTo48kHz(
+                    _conversionBuffer,
+                    convertedLength,
+                    sourceSampleRate,
+                    _resampleBuffer!,
+                    ref _resampleBuffer!);
+                
+                return (_resampleBuffer!, outputLength);
+            }
+
+            return (_conversionBuffer, convertedLength);
+        }
+
+        private void ProcessHandlers(IAudioHandler[] handlers, byte[] buffer, int length)
+        {
+            for (int i = 0; i < handlers.Length; i++)
+            {
+                var handler = handlers[i];
+                if (handler.Enabled)
+                {
+                    handler.ProcessBuffer(buffer, 0, length, _outputFormat);
+                }
+            }
+        }
+
+        private void WriteToMp3(byte[] buffer, int length, WasapiLoopbackCapture loopbackRef)
+        {
+            lock (_loopbackLock)
+            {
+                if (_mp3Writer != null && loopbackRef == _loopback)
+                {
+                    _mp3Writer.Write(buffer, 0, length);
+                }
+            }
+        }
+
+        private void HandleRecordingStopped(WasapiLoopbackCapture loopbackRef)
+        {
+            if (_deviceSwitchInProgress) return;
+
+            if (loopbackRef == _loopback)
+            {
+                Stop();
+            }
         }
 
         private void CleanupCapture()

@@ -24,6 +24,10 @@ namespace GoombaCast.Services
         public bool LimiterEnabled { get; set; } = true;
         [JsonPropertyName("limiterThreshold")]
         public float LimiterThreshold { get; set; } = -3.0f;
+        [JsonPropertyName("audioBufferMs")]
+        public int AudioBufferMs { get; set; } = 20; // Default 20ms (low latency)
+        [JsonPropertyName("conversionBufferMs")]
+        public int ConversionBufferMs { get; set; } = 100; // Default 100ms
         [JsonPropertyName("recordingDirectory")]
         public string RecordingDirectory { get; set; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
@@ -31,6 +35,7 @@ namespace GoombaCast.Services
         );
         [JsonPropertyName("inputSources")]
         public List<InputSourceConfig> InputSources { get; set; } = new();
+        
 
         public bool IsValid()
         {

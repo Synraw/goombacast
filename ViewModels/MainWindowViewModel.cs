@@ -88,7 +88,7 @@ namespace GoombaCast.ViewModels
         /// <param name="serviceProvider">Service provider for resolving dependencies</param>
         /// <exception cref="ArgumentNullException">Thrown if any required service is null</exception>
         public MainWindowViewModel(
-            AudioEngine audioEngine, 
+            AudioEngine audioEngine,
             ILoggingService loggingService,
             IServiceProvider serviceProvider)
         {
@@ -355,7 +355,7 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private async Task StartStreaming(string streamName)
         {
-            if(App.Audio.InputSources.Count == 0)
+            if (App.Audio.InputSources.Count == 0)
             {
                 Logging.LogWarning("No input sources available to start streaming.");
                 return;
@@ -385,7 +385,7 @@ namespace GoombaCast.ViewModels
         [RelayCommand]
         private void ToggleRecord()
         {
-            if(App.Audio.InputSources.Count == 0)
+            if (App.Audio.InputSources.Count == 0)
             {
                 Logging.LogWarning("No input sources available to start recording.");
                 return;

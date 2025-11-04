@@ -200,136 +200,95 @@ namespace GoombaCast.Models.Audio.Streaming
 
         private void CreateAndStartMic(bool notifyHandlers)
         {
-            // Ensure any existing instance is properly cleaned up
+            // Clean up existing instance
+            DisposeCurrentMic();
+
+            // Initialize new capture device
+            _mic = new WasapiCapture(_inputDevice?.Device)
+            {
+                ShareMode = AudioClientShareMode.Shared
+            };
+
+            var nativeFormat = _mic.WaveFormat;
+            LogNativeFormat(nativeFormat);
+
+            // Allocate buffers based on native and output formats
+            InitializeBuffers(nativeFormat);
+
+            // Notify handlers if requested
+            if (notifyHandlers)
+            {
+                NotifyHandlersStart();
+            }
+
+            // Attach event handlers and start recording
+            AttachEventHandlers(nativeFormat);
+            _mic.StartRecording();
+        }
+
+        private void DisposeCurrentMic()
+        {
             if (_mic != null)
             {
                 try { _mic.StopRecording(); } catch { /* ignore */ }
                 _mic.Dispose();
                 _mic = null;
             }
+        }
 
-            // Use native format (don't force conversion in Shared mode)
-            _mic = new WasapiCapture(_inputDevice?.Device)
-            {
-                ShareMode = AudioClientShareMode.Shared
-                // Let device use its native format
-            };
+        private void LogNativeFormat(WaveFormat format)
+        {
+            Logging.Log($"MicrophoneStream: Native format: {format.SampleRate}Hz, {format.BitsPerSample}bit, {format.Channels}ch");
+        }
 
-            var nativeFormat = _mic.WaveFormat;
-            Logging.Log($"MicrophoneStream: Native format: {nativeFormat.SampleRate}Hz, {nativeFormat.BitsPerSample}bit, {nativeFormat.Channels}ch");
+        private void InitializeBuffers(WaveFormat nativeFormat)
+        {
+            var settings = SettingsService.Default.Settings;
+            int targetBufferMs = settings.AudioBufferMs;
 
-            // Calculate buffer sizes
-            const int targetBufferMs = 20;
+            // Calculate source buffer size
             int sourceBytesPerSecond = nativeFormat.AverageBytesPerSecond;
             int sourceBufferSize = (sourceBytesPerSecond * targetBufferMs) / 1000;
-            sourceBufferSize = (sourceBufferSize + 3) & ~3;
+            sourceBufferSize = (sourceBufferSize + 3) & ~3; // Align to 4 bytes
 
             if (_conversionBuffer == null || _conversionBuffer.Length < sourceBufferSize * 2)
             {
                 _conversionBuffer = new byte[sourceBufferSize * 2];
             }
 
+            // Calculate output buffer size
             int outputSamplesPerChannel = (_outputFormat.SampleRate * targetBufferMs) / 1000;
-            int outputBufferSize = outputSamplesPerChannel * 4;
+            int outputBufferSize = outputSamplesPerChannel * 4; // 2 channels * 2 bytes per sample
+
             if (_resampleBuffer == null || _resampleBuffer.Length < outputBufferSize * 2)
             {
                 _resampleBuffer = new byte[outputBufferSize * 2];
             }
+        }
 
-            // Take snapshot of handlers before attaching events
+        private void NotifyHandlersStart()
+        {
             var handlers = _handlerSnapshot;
-
-            if (notifyHandlers)
+            foreach (var handler in handlers)
             {
-                // Notify handlers capture is starting with the output format
-                foreach (var h in handlers)
-                    h.OnStart(_outputFormat);
+                handler.OnStart(_outputFormat);
             }
+        }
 
+        private void AttachEventHandlers(WaveFormat nativeFormat)
+        {
             var micRef = _mic;
             var sourceChannels = nativeFormat.Channels;
             var sourceSampleRate = nativeFormat.SampleRate;
             var sourceBitsPerSample = nativeFormat.BitsPerSample;
 
-            _mic.DataAvailable += (s, a) =>
+            _mic!.DataAvailable += (s, a) =>
             {
                 if (micRef != _mic || !_running) return;
 
                 try
                 {
-                    var hs = _handlerSnapshot;
-
-                    // Step 1: Convert from native format to 16-bit stereo at native sample rate
-                    int convertedLength;
-
-                    if (sourceBitsPerSample == 32 && nativeFormat.Encoding == WaveFormatEncoding.IeeeFloat)
-                    {
-                        convertedLength = AudioFormatConverter.ConvertFloat32ToStereoInt16(
-                            a.Buffer,
-                            _conversionBuffer,
-                            a.BytesRecorded,
-                            sourceChannels,
-                            _ditherRng ??= new Random());
-                    }
-                    else if (sourceBitsPerSample == 16)
-                    {
-                        convertedLength = AudioFormatConverter.ConvertInt16ToStereo(
-                            a.Buffer,
-                            _conversionBuffer,
-                            a.BytesRecorded,
-                            sourceChannels);
-                    }
-                    else if (sourceBitsPerSample == 24)
-                    {
-                        convertedLength = AudioFormatConverter.ConvertInt24ToStereoInt16(
-                            a.Buffer,
-                            _conversionBuffer,
-                            a.BytesRecorded,
-                            sourceChannels);
-                    }
-                    else
-                    {
-                        Logging.LogWarning($"Unsupported microphone bit depth: {sourceBitsPerSample}");
-                        return;
-                    }
-
-                    // Step 2: Resample to 48kHz if needed
-                    byte[] outputBuffer;
-                    int outputLength;
-
-                    if (sourceSampleRate != _outputFormat.SampleRate)
-                    {
-                        AudioResampler.ApplyAntiAliasingFilter(_conversionBuffer, convertedLength, sourceSampleRate, ref _filterState!);
-
-                        outputLength = AudioResampler.ResampleTo48kHz(
-                            _conversionBuffer,
-                            convertedLength,
-                            sourceSampleRate,
-                            _resampleBuffer,
-                            ref _resampleBuffer);
-                        outputBuffer = _resampleBuffer;
-                    }
-                    else
-                    {
-                        outputBuffer = _conversionBuffer;
-                        outputLength = convertedLength;
-                    }
-
-                    // Step 3: Send to handlers
-                    for (int i = 0; i < hs.Length; i++)
-                    {
-                        var h = hs[i];
-                        if (h.Enabled)
-                            h.ProcessBuffer(outputBuffer, 0, outputLength, _outputFormat);
-                    }
-
-                    lock (_micLock)
-                    {
-                        if (_mp3Writer != null && micRef == _mic)
-                        {
-                            _mp3Writer.Write(outputBuffer, 0, outputLength);
-                        }
-                    }
+                    ProcessAudioData(a.Buffer, a.BytesRecorded, sourceChannels, sourceSampleRate, sourceBitsPerSample, nativeFormat.Encoding, micRef);
                 }
                 catch (Exception ex)
                 {
@@ -337,7 +296,7 @@ namespace GoombaCast.Models.Audio.Streaming
                 }
             };
 
-            _mic.RecordingStopped += (s, a) =>
+            _mic!.RecordingStopped += (s, a) =>
             {
                 if (_deviceSwitchInProgress) return;
 
@@ -347,8 +306,99 @@ namespace GoombaCast.Models.Audio.Streaming
                     Stop();
                 }
             };
+        }
 
-            _mic.StartRecording();
+        private void ProcessAudioData(byte[] inputBuffer, int bytesRecorded, int sourceChannels, int sourceSampleRate, int sourceBitsPerSample, WaveFormatEncoding encoding, WasapiCapture micRef)
+        {
+            var handlers = _handlerSnapshot;
+
+            // Step 1: Convert to 16-bit stereo at native sample rate
+            int convertedLength = ConvertToStereoInt16(inputBuffer, bytesRecorded, sourceChannels, sourceBitsPerSample, encoding);
+
+            // Step 2: Resample to 48kHz if needed
+            (byte[] outputBuffer, int outputLength) = ResampleIfNeeded(convertedLength, sourceSampleRate);
+
+            // Step 3: Send to handlers
+            ProcessHandlers(handlers, outputBuffer, outputLength);
+
+            // Step 4: Write to MP3 encoder
+            WriteToEncoder(outputBuffer, outputLength, micRef);
+        }
+
+        private int ConvertToStereoInt16(byte[] inputBuffer, int bytesRecorded, int sourceChannels, int sourceBitsPerSample, WaveFormatEncoding encoding)
+        {
+            if (sourceBitsPerSample == 32 && encoding == WaveFormatEncoding.IeeeFloat)
+            {
+                return AudioFormatConverter.ConvertFloat32ToStereoInt16(
+                    inputBuffer,
+                    _conversionBuffer!,
+                    bytesRecorded,
+                    sourceChannels,
+                    _ditherRng ??= new Random());
+            }
+            else if (sourceBitsPerSample == 16)
+            {
+                return AudioFormatConverter.ConvertInt16ToStereo(
+                    inputBuffer,
+                    _conversionBuffer!,
+                    bytesRecorded,
+                    sourceChannels);
+            }
+            else if (sourceBitsPerSample == 24)
+            {
+                return AudioFormatConverter.ConvertInt24ToStereoInt16(
+                    inputBuffer,
+                    _conversionBuffer!,
+                    bytesRecorded,
+                    sourceChannels);
+            }
+            else
+            {
+                Logging.LogWarning($"Unsupported microphone bit depth: {sourceBitsPerSample}");
+                return 0;
+            }
+        }
+
+        private (byte[] buffer, int length) ResampleIfNeeded(int convertedLength, int sourceSampleRate)
+        {
+            if (sourceSampleRate != _outputFormat.SampleRate)
+            {
+                AudioResampler.ApplyAntiAliasingFilter(_conversionBuffer!, convertedLength, sourceSampleRate, ref _filterState!);
+
+                int outputLength = AudioResampler.ResampleTo48kHz(
+                    _conversionBuffer!,
+                    convertedLength,
+                    sourceSampleRate,
+                    _resampleBuffer!,
+                    ref _resampleBuffer!);
+
+                return (_resampleBuffer, outputLength);
+            }
+
+            return (_conversionBuffer!, convertedLength);
+        }
+
+        private void ProcessHandlers(IAudioHandler[] handlers, byte[] buffer, int length)
+        {
+            for (int i = 0; i < handlers.Length; i++)
+            {
+                var handler = handlers[i];
+                if (handler.Enabled)
+                {
+                    handler.ProcessBuffer(buffer, 0, length, _outputFormat);
+                }
+            }
+        }
+
+        private void WriteToEncoder(byte[] buffer, int length, WasapiCapture micRef)
+        {
+            lock (_micLock)
+            {
+                if (_mp3Writer != null && micRef == _mic)
+                {
+                    _mp3Writer.Write(buffer, 0, length);
+                }
+            }
         }
 
         private void RestartCapture()
@@ -357,7 +407,12 @@ namespace GoombaCast.Models.Audio.Streaming
             {
                 lock (_micLock)
                 {
-                    try { _mic?.StopRecording(); } catch { /* ignore */ }
+                    try 
+                    { 
+                        _mic?.StopRecording(); 
+                    } catch (Exception e) { 
+                        Logging.LogWarning($"Error stopping microphone during device switch: {e.Message}");
+                    }
                     _mic?.Dispose();
                     _mic = null;
 
