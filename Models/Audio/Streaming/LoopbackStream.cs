@@ -1,4 +1,5 @@
 ﻿using GoombaCast.Models.Audio.AudioHandlers;
+using GoombaCast.Models.Audio.AudioProcessing;
 using GoombaCast.Services;
 using NAudio.CoreAudioApi;
 using NAudio.Lame;
@@ -6,12 +7,9 @@ using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace GoombaCast.Models.Audio.Streaming
 {
-
     public sealed class OutputDevice(MMDevice output)
     {
         public MMDevice Device { get; } = output;
@@ -41,17 +39,24 @@ namespace GoombaCast.Models.Audio.Streaming
         private IcecastStream _iceStream = iceStream;
         private volatile bool _running = false;
         private volatile bool _deviceSwitchInProgress;
+        private Random? _ditherRng;
+
+        // Fixed output format to match mixer (48kHz, 16-bit, stereo)
+        private readonly WaveFormat _outputFormat = new(48000, 16, 2);
 
         private readonly object _loopbackLock = new();
         private readonly object _handlerLock = new();
         private IAudioHandler[] _handlerSnapshot = [];
 
-        private byte[]? _conversionBuffer;
+        // Make buffers persistent and reuse them
+        private byte[]? _conversionBuffer = new byte[19200]; // Pre-allocate for 100ms @ 48kHz
+        private byte[]? _resampleBuffer = new byte[19200];
+        private float[]? _filterState; // Store previous samples for continuity
         private EventHandler<WaveInEventArgs>? _dataAvailableHandler;
         private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
 
         public OutputDevice? CurrentOutputDevice => _outputDevice;
-        public WaveFormat? WaveFormat => _loopback?.WaveFormat;
+        public WaveFormat? WaveFormat => _outputFormat; // Always return 48kHz format
         public bool IsRunning => _running;
 
         private void CreateAndStartCapture(bool notifyHandlers)
@@ -62,82 +67,186 @@ namespace GoombaCast.Models.Audio.Streaming
             }
 
             _loopback = new WasapiLoopbackCapture(_outputDevice?.Device);
+            _mp3Writer = new LameMP3FileWriter(_iceStream, _outputFormat, 320);
 
-            var stereoFormat = new WaveFormat(_loopback!.WaveFormat.SampleRate, 16, 2);
-            _mp3Writer = new LameMP3FileWriter(_iceStream, stereoFormat, 320);
-
-            int bufferMilliseconds = 100;
-            int bytesPerSecond = _loopback.WaveFormat.AverageBytesPerSecond;
-            int bufferSize = (bytesPerSecond * bufferMilliseconds) / 1000;
-            _conversionBuffer = new byte[bufferSize];
-
-            var handlers = _handlerSnapshot;
-
+            InitializeBuffers();
+            
             if (notifyHandlers)
             {
-                foreach (var h in handlers)
-                {
-                    h.OnStart(stereoFormat);
-                }
+                NotifyHandlersStart();
             }
 
-            var loopbackRef = _loopback;
-            var sourceChannels = _loopback.WaveFormat.Channels;
+            AttachEventHandlers();
+            _loopback.StartRecording();
+        }
 
-            _dataAvailableHandler = (s, a) =>
+        private void InitializeBuffers()
+        {
+            var settings = SettingsService.Default.Settings;
+            var sourceFormat = _loopback!.WaveFormat;
+            
+            // Calculate conversion buffer size
+            int conversionBufferSize = CalculateBufferSize(
+                sourceFormat.AverageBytesPerSecond, 
+                settings.ConversionBufferMs);
+            _conversionBuffer = new byte[conversionBufferSize];
+
+            // Calculate target buffer size for processing
+            int targetBufferMs = settings.AudioBufferMs;
+            int targetSamplesPerChannel = (_outputFormat.SampleRate * targetBufferMs) / 1000;
+            int alignedBufferSize = targetSamplesPerChannel * 4; // 4 bytes for stereo 16-bit
+
+            // Ensure conversion buffer is large enough
+            int requiredSize = CalculateBufferSize(
+                sourceFormat.AverageBytesPerSecond, 
+                targetBufferMs);
+            
+            if (_conversionBuffer.Length < requiredSize * 2)
             {
-                if (loopbackRef != _loopback || !_running) return;
+                _conversionBuffer = new byte[requiredSize * 2];
+            }
+            
+            _resampleBuffer = new byte[alignedBufferSize * 2];
+        }
 
-                try
-                {
-                    var hs = _handlerSnapshot;
+        private static int CalculateBufferSize(int bytesPerSecond, int milliseconds)
+        {
+            int size = (bytesPerSecond * milliseconds) / 1000;
+            return (size + 3) & ~3; // Align to 4-byte boundary
+        }
 
-                    int stereoBytes = (a.BytesRecorded / sourceChannels) * 2;
-                    if (_conversionBuffer.Length < stereoBytes)
-                    {
-                        Array.Resize(ref _conversionBuffer, stereoBytes);
-                    }
-
-                    int convertedLength = ConvertFloatToStereoInt16(a.Buffer, _conversionBuffer, a.BytesRecorded, sourceChannels);
-
-                    for (int i = 0; i < hs.Length; i++)
-                    {
-                        var h = hs[i];
-                        if (h.Enabled)
-                        {
-                            h.ProcessBuffer(_conversionBuffer, 0, convertedLength, stereoFormat);
-                        }
-                    }
-
-                    lock (_loopbackLock)
-                    {
-                        if (_mp3Writer != null && loopbackRef == _loopback)
-                        {
-                            _mp3Writer.Write(_conversionBuffer, 0, convertedLength);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.Log($"Error processing audio data: {ex.Message}");
-                    Stop();
-                }
-            };
-
-            _recordingStoppedHandler = (s, a) =>
+        private void NotifyHandlersStart()
+        {
+            var handlers = _handlerSnapshot;
+            foreach (var handler in handlers)
             {
-                if (_deviceSwitchInProgress) return;
+                handler.OnStart(_outputFormat);
+            }
+        }
 
-                if (loopbackRef == _loopback)
-                {
-                    Stop();
-                }
-            };
+        private void AttachEventHandlers()
+        {
+            var loopbackRef = _loopback!;
+            var sourceChannels = _loopback!.WaveFormat.Channels;
+            var sourceSampleRate = _loopback!.WaveFormat.SampleRate;
+
+            _dataAvailableHandler = (s, a) => ProcessAudioData(
+                a, 
+                loopbackRef, 
+                sourceChannels, 
+                sourceSampleRate);
+
+            _recordingStoppedHandler = (s, a) => HandleRecordingStopped(loopbackRef);
 
             _loopback.DataAvailable += _dataAvailableHandler;
             _loopback.RecordingStopped += _recordingStoppedHandler;
+        }
 
-            _loopback.StartRecording();
+        private void ProcessAudioData(
+            WaveInEventArgs args, 
+            WasapiLoopbackCapture loopbackRef, 
+            int sourceChannels, 
+            int sourceSampleRate)
+        {
+            if (loopbackRef != _loopback || !_running) return;
+
+            try
+            {
+                var handlers = _handlerSnapshot;
+
+                // Step 1: Convert to stereo Int16
+                var (outputBuffer, outputLength) = ConvertAndResample(
+                    args.Buffer, 
+                    args.BytesRecorded, 
+                    sourceChannels, 
+                    sourceSampleRate);
+
+                // Step 2: Send to handlers
+                ProcessHandlers(handlers, outputBuffer, outputLength);
+
+                // Step 3: Write to MP3
+                WriteToMp3(outputBuffer, outputLength, loopbackRef);
+            }
+            catch (Exception ex)
+            {
+                Logging.LogError($"Error processing loopback audio: {ex.Message}");
+                Stop();
+            }
+        }
+
+        private (byte[] buffer, int length) ConvertAndResample(
+            byte[] sourceBuffer, 
+            int bytesRecorded, 
+            int sourceChannels, 
+            int sourceSampleRate)
+        {
+            // Convert float32 to int16 stereo
+            int stereoBytes = (bytesRecorded / sourceChannels) * 2;
+            if (_conversionBuffer!.Length < stereoBytes)
+            {
+                Array.Resize(ref _conversionBuffer, stereoBytes);
+            }
+
+            int convertedLength = AudioFormatConverter.ConvertFloat32ToStereoInt16(
+                sourceBuffer,
+                _conversionBuffer,
+                bytesRecorded,
+                sourceChannels,
+                _ditherRng ??= new Random());
+
+            // Resample if needed
+            if (sourceSampleRate != _outputFormat.SampleRate)
+            {
+                AudioResampler.ApplyAntiAliasingFilter(
+                    _conversionBuffer, 
+                    convertedLength, 
+                    sourceSampleRate, 
+                    ref _filterState!);
+
+                int outputLength = AudioResampler.ResampleTo48kHz(
+                    _conversionBuffer,
+                    convertedLength,
+                    sourceSampleRate,
+                    _resampleBuffer!,
+                    ref _resampleBuffer!);
+                
+                return (_resampleBuffer!, outputLength);
+            }
+
+            return (_conversionBuffer, convertedLength);
+        }
+
+        private void ProcessHandlers(IAudioHandler[] handlers, byte[] buffer, int length)
+        {
+            for (int i = 0; i < handlers.Length; i++)
+            {
+                var handler = handlers[i];
+                if (handler.Enabled)
+                {
+                    handler.ProcessBuffer(buffer, 0, length, _outputFormat);
+                }
+            }
+        }
+
+        private void WriteToMp3(byte[] buffer, int length, WasapiLoopbackCapture loopbackRef)
+        {
+            lock (_loopbackLock)
+            {
+                if (_mp3Writer != null && loopbackRef == _loopback)
+                {
+                    _mp3Writer.Write(buffer, 0, length);
+                }
+            }
+        }
+
+        private void HandleRecordingStopped(WasapiLoopbackCapture loopbackRef)
+        {
+            if (_deviceSwitchInProgress) return;
+
+            if (loopbackRef == _loopback)
+            {
+                Stop();
+            }
         }
 
         private void CleanupCapture()
@@ -162,51 +271,19 @@ namespace GoombaCast.Models.Audio.Streaming
             }
 
             _conversionBuffer = null;
-        }
+            _resampleBuffer = null;
 
-        private unsafe int ConvertFloatToStereoInt16(byte[] source, byte[] dest, int sourceBytes, int sourceChannels)
-        {
-            int samplesPerChannel = sourceBytes / (4 * sourceChannels);
-            int outputSamples = samplesPerChannel * 2;
-
-            fixed (byte* sourcePtr = source)
-            fixed (byte* destPtr = dest)
+            // Reset filter state to prevent artifacts on next start (NEW)
+            if (_filterState != null)
             {
-                float* floatPtr = (float*)sourcePtr;
-                short* shortPtr = (short*)destPtr;
-
-                for (int i = 0; i < samplesPerChannel; i++)
-                {
-                    float leftSum = 0;
-                    float rightSum = 0;
-                    
-                    for (int ch = 0; ch < sourceChannels; ch++)
-                    {
-                        float sample = floatPtr[i * sourceChannels + ch];
-                        if (ch % 2 == 0)
-                            leftSum += sample;
-                        else
-                            rightSum += sample;
-                    }
-
-                    leftSum /= (sourceChannels + 1) / 2;
-                    rightSum /= sourceChannels / 2;
-
-                    leftSum = Math.Max(-1.0f, Math.Min(1.0f, leftSum));
-                    rightSum = Math.Max(-1.0f, Math.Min(1.0f, rightSum));
-
-                    shortPtr[i * 2] = (short)(leftSum * 32767.0f);
-                    shortPtr[i * 2 + 1] = (short)(rightSum * 32767.0f);
-                }
+                Array.Clear(_filterState, 0, _filterState.Length);
             }
-
-            return outputSamples * 2; 
         }
 
         public bool ChangeDevice(string? deviceId)
         {
             if (string.IsNullOrWhiteSpace(deviceId)) return false;
-            var device = OutputDevice.GetActiveOutputDevices().FirstOrDefault(d => 
+            var device = OutputDevice.GetActiveOutputDevices().FirstOrDefault(d =>
                 string.Equals(d.Id, deviceId, StringComparison.OrdinalIgnoreCase));
             if (device == null) return false;
             return SetOutputDevice(device);
@@ -246,7 +323,7 @@ namespace GoombaCast.Models.Audio.Streaming
 
                     if (_running)
                     {
-                        _mp3Writer = new LameMP3FileWriter(_iceStream, _loopback!.WaveFormat, 320);
+                        _mp3Writer = new LameMP3FileWriter(_iceStream, _outputFormat, 320);
                     }
                 }
             }
@@ -261,17 +338,17 @@ namespace GoombaCast.Models.Audio.Streaming
             lock (_loopbackLock)
             {
                 if (_running) return;
-                
+
                 if (_outputDevice == null || _iceStream == null) return;
 
-                try 
+                try
                 {
                     CreateAndStartCapture(notifyHandlers: true);
                     _running = true;
                 }
                 catch (Exception ex)
                 {
-                    Logging.Log($"Failed to start loopback capture: {ex.Message}");
+                    Logging.LogError($"Failed to start loopback capture: {ex.Message}");
                     Stop();
                     throw;
                 }
@@ -306,13 +383,19 @@ namespace GoombaCast.Models.Audio.Streaming
                         }
                         catch (Exception ex)
                         {
-                            Logging.Log($"Error in handler OnStop: {ex.Message}");
+                            Logging.LogError($"Error in handler OnStop: {ex.Message}");
                         }
+                    }
+
+                    // Reset filter state to prevent artifacts on next start (NEW)
+                    if (_filterState != null)
+                    {
+                        Array.Clear(_filterState, 0, _filterState.Length);
                     }
                 }
                 catch (Exception ex)
                 {
-                    Logging.Log($"Error while stopping loopback capture: {ex.Message}");
+                    Logging.LogError($"Error while stopping loopback capture: {ex.Message}");
                 }
             }
         }
@@ -321,6 +404,7 @@ namespace GoombaCast.Models.Audio.Streaming
         {
             Stop();
             _conversionBuffer = null;
+            _resampleBuffer = null;
         }
 
         public void AddAudioHandler(IAudioHandler handler)
@@ -335,9 +419,9 @@ namespace GoombaCast.Models.Audio.Streaming
                 _handlerSnapshot = newSnapshot;
             }
 
-            if (_running && _loopback?.WaveFormat != null)
+            if (_running)
             {
-                handler.OnStart(_loopback.WaveFormat);
+                handler.OnStart(_outputFormat);
             }
         }
 

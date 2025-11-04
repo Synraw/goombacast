@@ -2,11 +2,13 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
 using GoombaCast.ViewModels;
 using GoombaCast.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,11 +19,11 @@ namespace GoombaCast
     {
         private ServiceProvider? _serviceProvider;
         private static AudioEngine? _audio;
-        
-        public static AudioEngine Audio => _audio ?? 
+
+        public static AudioEngine Audio => _audio ??
             throw new InvalidOperationException("AudioEngine not initialized");
 
-        public override void Initialize() 
+        public override void Initialize()
             => AvaloniaXamlLoader.Load(this);
 
         public override void OnFrameworkInitializationCompleted()
@@ -35,7 +37,7 @@ namespace GoombaCast
             {
                 ConfigureServices(desktop);
                 ConfigureMainWindow(desktop);
-                StartAudioEngine();
+                InitializeAudioEngine();
             }
             catch (Exception ex)
             {
@@ -52,20 +54,14 @@ namespace GoombaCast
 
             // Register services
             services.AddSingleton<ILoggingService, LoggingService>();
-            services.AddSingleton<AudioEngine>(sp => 
+            services.AddSingleton<AudioEngine>(sp =>
             {
-                var uiCtx = SynchronizationContext.Current ?? 
+                var uiCtx = SynchronizationContext.Current ??
                     throw new InvalidOperationException("UI SynchronizationContext not available");
                 return new AudioEngine(uiCtx);
             });
-            services.AddTransient<MainWindowViewModel>();
             services.AddTransient<SettingsWindowViewModel>();
-            services.AddSingleton<IDialogService>(sp =>
-            {
-                var mainWindow = desktop.MainWindow ?? 
-                    throw new InvalidOperationException("MainWindow not initialized");
-                return new DialogService(sp, mainWindow);
-            });
+            services.AddSingleton<MainWindowViewModel>();
 
             _serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
             {
@@ -77,30 +73,8 @@ namespace GoombaCast
             Logging.Initialize(loggingService);
 
             _audio = _serviceProvider.GetRequiredService<AudioEngine>();
-            ConfigureAudioEngineFromSettings(_audio);
 
             DisableAvaloniaDataAnnotationValidation();
-        }
-
-        private void ConfigureAudioEngineFromSettings(AudioEngine audio)
-        {
-            var settings = SettingsService.Default.Settings;
-            
-            audio.RecreateAudioStream(settings.AudioStreamType);
-
-            if (settings.AudioStreamType == AudioEngine.AudioStreamType.Microphone && 
-                !string.IsNullOrEmpty(settings.MicrophoneDeviceId))
-            {
-                audio.ChangeDevice(settings.MicrophoneDeviceId);
-            }
-            else if (settings.AudioStreamType == AudioEngine.AudioStreamType.Loopback && 
-                     !string.IsNullOrEmpty(settings.LoopbackDeviceId))
-            {
-                audio.ChangeDevice(settings.LoopbackDeviceId);
-            }
-
-            audio.SetLimiterEnabled(settings.LimiterEnabled);
-            audio.SetLimiterThreshold(settings.LimiterThreshold);
         }
 
         private void ConfigureMainWindow(IClassicDesktopStyleApplicationLifetime desktop)
@@ -129,16 +103,73 @@ namespace GoombaCast
             }
         }
 
-        private void StartAudioEngine()
+        private void InitializeAudioEngine()
         {
+            if (_audio == null)
+                throw new InvalidOperationException("AudioEngine not initialized");
+
             try
             {
-                _audio?.Start();
+                var settings = SettingsService.Default.Settings;
+
+                // Configure limiter
+                _audio.SetLimiterEnabled(settings.LimiterEnabled);
+                _audio.SetLimiterThreshold(settings.LimiterThreshold);
+
+                // Restore or initialize input sources
+                RestoreInputSources(settings);
             }
             catch (Exception ex)
             {
-                Logging.LogError($"Failed to start audio engine: {ex}");
+                Logging.LogError($"Failed to initialize audio engine: {ex}");
                 throw;
+            }
+        }
+
+        private void RestoreInputSources(AppSettings settings)
+        {
+            if (settings.InputSources != null && settings.InputSources.Count > 0)
+            {
+                RestoreSavedInputSources(settings.InputSources);
+            }
+            else
+            {
+                AddDefaultInputSource();
+            }
+        }
+
+        private void RestoreSavedInputSources(List<AppSettings.InputSourceConfig> sourceConfigs)
+        {
+            foreach (var sourceConfig in sourceConfigs.ToList())
+            {
+                try
+                {
+                    var source = _audio!.AddInputSource(sourceConfig.DeviceId, sourceConfig.StreamType);
+                    source.Volume = sourceConfig.Volume;
+                    source.IsMuted = sourceConfig.IsMuted;
+                    source.IsSolo = sourceConfig.IsSolo;
+                }
+                catch (Exception ex)
+                {
+                    Logging.LogWarning($"Failed to restore input source {sourceConfig.DeviceId}: {ex.Message}");
+                }
+            }
+        }
+
+        private void AddDefaultInputSource()
+        {
+            try
+            {
+                var defaultMic = InputDevice.GetDefaultInputDevice();
+                if (defaultMic != null)
+                {
+                    _audio!.AddInputSource(defaultMic.Id, AudioEngine.AudioStreamType.Microphone);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.LogWarning($"Could not add default input device: {ex.Message}");
+                Logging.Log("Please add audio sources in Settings.");
             }
         }
 

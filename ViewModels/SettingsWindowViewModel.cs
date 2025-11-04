@@ -1,204 +1,185 @@
-﻿using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Platform.Storage;
+﻿using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
+using GoombaCast.Views;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using static GoombaCast.Services.AudioEngine;
 
 namespace GoombaCast.ViewModels
 {
     public partial class SettingsWindowViewModel : ViewModelBase
     {
+        private readonly SettingsService _settingsService = SettingsService.Default;
+
         public event EventHandler<string>? StreamNameChanged;
 
-        [ObservableProperty]
-        private ObservableCollection<InputDevice> _availableMicrophones = [];
+        // Limiter Properties
+        [ObservableProperty] private bool _limiterEnabled;
+        [ObservableProperty] private float _limiterThreshold;
 
-        [ObservableProperty]
-        private ObservableCollection<OutputDevice> _availableAudioOutputs = [];
+        // Server Properties
+        [ObservableProperty] private string _serverAddress = string.Empty;
+        [ObservableProperty] private string _username = string.Empty;
+        [ObservableProperty] private string _password = string.Empty;
+        [ObservableProperty] private string _streamName = string.Empty;
 
-        [ObservableProperty]
-        private InputDevice? _selectedMicrophone;
+        // Recording Properties
+        [ObservableProperty] private string _recordingDirectory = string.Empty;
 
-        [ObservableProperty]
-        private OutputDevice? _selectedAudioLoopback;
-
-        [ObservableProperty]
-        private string _serverAddress;
-
-        [ObservableProperty]
-        private string _streamName;
-
-        [ObservableProperty]
-        private string _username;
-
-        [ObservableProperty]
-        private string _password;
-
-        [ObservableProperty]
-        private bool _limiterEnabled;
-
-        [ObservableProperty]
-        private float _limiterThreshold;
-
-        [ObservableProperty]
-        private string _recordingDirectory;
-
-        private bool _useLoopback;
-
-        public bool UseLoopback
-        {
-            get => _useLoopback;
-            set
-            {
-                if (SetProperty(ref _useLoopback, value))
-                {
-                    var settings = SettingsService.Default.Settings;
-                    var newType = value ? AudioStreamType.Loopback : AudioStreamType.Microphone;
-                    
-                    settings.AudioStreamType = newType;
-
-                    App.Audio.RecreateAudioStream(newType);
-
-                    if (value)
-                    {
-                        App.Audio.ChangeDevice(SelectedAudioLoopback?.Id ?? string.Empty);
-                        settings.LoopbackDeviceId = SelectedAudioLoopback?.Id;
-                    }
-                    else
-                    {
-                        App.Audio.ChangeDevice(SelectedMicrophone?.Id ?? string.Empty);
-                        settings.MicrophoneDeviceId = SelectedMicrophone?.Id;
-                    }
-                    
-                    SettingsService.Default.Save();
-                }
-            }
-        }
+        // Mixer Properties
+        public ObservableCollection<AudioInputSource> InputSources { get; } = new();
 
         public SettingsWindowViewModel()
         {
-            var settings = SettingsService.Default.Settings;
+            LoadSettings();
+            LoadInputSources();
+        }
 
-            ServerAddress = settings.ServerAddress ?? "http://localhost:8080/";
-            StreamName = settings.StreamName ?? "My Local Icecast Stream";
-            Username = settings.UserName ?? "user";
-            Password = settings.Password ?? "password";
+        private void LoadSettings()
+        {
+            var settings = _settingsService.Settings;
+
+            // Audio settings
             LimiterEnabled = settings.LimiterEnabled;
             LimiterThreshold = settings.LimiterThreshold;
-            RecordingDirectory = settings.RecordingDirectory;
 
-            InitializeDevices(settings);
+            // Server settings
+            ServerAddress = settings.ServerAddress ?? string.Empty;
+            Username = settings.UserName ?? string.Empty;
+            Password = settings.Password ?? string.Empty;
+            StreamName = settings.StreamName ?? string.Empty;
 
-            PropertyChanged += (s, e) => UpdateSetting(e.PropertyName!);
+            // Recording settings
+            RecordingDirectory = settings.RecordingDirectory ?? string.Empty;
         }
 
-        private void InitializeDevices(AppSettings settings)
+        private void LoadInputSources()
         {
-            var inputDevices = InputDevice.GetActiveInputDevices();
-            var outputDevices = OutputDevice.GetActiveOutputDevices();
-
-            AvailableMicrophones = new ObservableCollection<InputDevice>(inputDevices);
-            AvailableAudioOutputs = new ObservableCollection<OutputDevice>(outputDevices);
-
-            SelectedMicrophone = settings.MicrophoneDeviceId != null
-                ? inputDevices.FirstOrDefault(d => d.Id == settings.MicrophoneDeviceId)
-                : inputDevices.FirstOrDefault();
-
-            SelectedAudioLoopback = settings.LoopbackDeviceId != null
-                ? outputDevices.FirstOrDefault(d => d.Id == settings.LoopbackDeviceId)
-                : outputDevices.FirstOrDefault();
-
-            UseLoopback = settings.AudioStreamType == AudioStreamType.Loopback;
-        }
-
-        private void UpdateSetting(string propertyName)
-        {
-            var settings = SettingsService.Default.Settings;
-
-            switch (propertyName)
+            InputSources.Clear();
+            foreach (var source in App.Audio.InputSources)
             {
-                case nameof(SelectedMicrophone):
-                    if (!UseLoopback && SelectedMicrophone != null)
-                    {
-                        settings.MicrophoneDeviceId = SelectedMicrophone.Id;
-                        App.Audio.ChangeDevice(SelectedMicrophone.Id);
-                    }
-                    break;
-                case nameof(SelectedAudioLoopback):
-                    if (UseLoopback && SelectedAudioLoopback != null)
-                    {
-                        settings.LoopbackDeviceId = SelectedAudioLoopback.Id;
-                        App.Audio.ChangeDevice(SelectedAudioLoopback.Id);
-                    }
-                    break;
-                case nameof(ServerAddress):
-                    settings.ServerAddress = ServerAddress;
-                    break;
-                case nameof(Username):
-                    settings.UserName = Username;
-                    break;
-                case nameof(Password):
-                    settings.Password = Password;
-                    break;
-                case nameof(StreamName):
-                    settings.StreamName = StreamName;
-                    StreamNameChanged?.Invoke(this, StreamName);
-                    break;
-                case nameof(LimiterEnabled):
-                    settings.LimiterEnabled = LimiterEnabled;
-                    App.Audio.SetLimiterEnabled(LimiterEnabled);
-                    break;
-                case nameof(LimiterThreshold):
-                    settings.LimiterThreshold = LimiterThreshold;
-                    App.Audio.SetLimiterThreshold(LimiterThreshold);
-                    break;
-                case nameof(RecordingDirectory):
-                    settings.RecordingDirectory = RecordingDirectory;
-                    break;
+                InputSources.Add(source);
             }
+        }
 
-            SettingsService.Default.Save();
+        partial void OnLimiterEnabledChanged(bool value)
+        {
+            var settings = _settingsService.Settings;
+            settings.LimiterEnabled = value;
+            _settingsService.Save();
+            App.Audio.SetLimiterEnabled(value);
+        }
+
+        partial void OnLimiterThresholdChanged(float value)
+        {
+            var settings = _settingsService.Settings;
+            settings.LimiterThreshold = value;
+            _settingsService.Save();
+            App.Audio.SetLimiterThreshold(value);
+        }
+
+        partial void OnServerAddressChanged(string value)
+        {
+            var settings = _settingsService.Settings;
+            settings.ServerAddress = value;
+            _settingsService.Save();
+        }
+
+        partial void OnUsernameChanged(string value)
+        {
+            var settings = _settingsService.Settings;
+            settings.UserName = value;
+            _settingsService.Save();
+        }
+
+        partial void OnPasswordChanged(string value)
+        {
+            var settings = _settingsService.Settings;
+            settings.Password = value;
+            _settingsService.Save();
+        }
+
+        partial void OnStreamNameChanged(string value)
+        {
+            var settings = _settingsService.Settings;
+            settings.StreamName = value;
+            StreamNameChanged?.Invoke(this, value);
+            _settingsService.Save();
         }
 
         [RelayCommand]
         private async Task SelectRecordingDirectory()
         {
-            if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+
+            if (topLevel == null) return;
+
+            var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
-                var mainWindow = desktop.MainWindow!;
+                Title = "Select Recording Directory",
+                AllowMultiple = false
+            });
 
-                string? recordingDir = RecordingDirectory;
-                string? dirName = recordingDir != null ? Path.GetDirectoryName(recordingDir) : null;
-                string? parentPath = dirName != null ? Directory.GetParent(dirName)?.FullName : recordingDir;
+            if (folders.Count > 0)
+            {
+                RecordingDirectory = folders[0].Path.LocalPath;
+                var settings = _settingsService.Settings;
+                settings.RecordingDirectory = RecordingDirectory;
+                _settingsService.Save();
+            }
+        }
 
-                IStorageFolder? startFolder = parentPath != null
-                    ? await mainWindow.StorageProvider.TryGetFolderFromPathAsync(parentPath)
-                    : null;
+        [RelayCommand]
+        private async Task AddInputSource()
+        {
+            // Show device selection dialog
+            var dialog = new DeviceSelectionDialog();
+            var result = await dialog.ShowDialog<DeviceSelectionResult?>(GetParentWindow()!);
 
-                var folders = await mainWindow.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            if (result != null && !string.IsNullOrEmpty(result.DeviceId))
+            {
+                try
                 {
-                    Title = "Select Recording Directory",
-                    AllowMultiple = false,
-                    SuggestedStartLocation = startFolder
-                });
-
-                var folder = folders.FirstOrDefault();
-                if (folder != null)
+                    var source = App.Audio.AddInputSource(result.DeviceId, result.StreamType);
+                    InputSources.Add(source);
+                }
+                catch (Exception ex)
                 {
-                    RecordingDirectory = folder.Path.LocalPath;
-                    var settings = SettingsService.Default.Settings;
-                    settings.RecordingDirectory = RecordingDirectory;
-                    SettingsService.Default.Save();
+                    Logging.LogError($"Failed to add input source: {ex.Message}");
                 }
             }
         }
+
+        [RelayCommand]
+        private void RemoveInputSource(AudioInputSource source)
+        {
+            if (source != null)
+            {
+                App.Audio.RemoveInputSource(source);
+                InputSources.Remove(source);
+            }
+        }
+
+        private Avalonia.Controls.Window? GetParentWindow()
+        {
+            return Avalonia.Application.Current?.ApplicationLifetime is
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.Windows.FirstOrDefault(w => w is Views.SettingsWindow)
+                : null;
+        }
+    }
+
+    // Helper class for device selection result
+    public class DeviceSelectionResult
+    {
+        public string DeviceId { get; set; } = string.Empty;
+        public AudioEngine.AudioStreamType StreamType { get; set; }
     }
 }

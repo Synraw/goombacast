@@ -7,6 +7,8 @@ using CommunityToolkit.Mvvm.Input;
 using GoombaCast.Extensions;
 using GoombaCast.Models.Audio.Streaming;
 using GoombaCast.Services;
+using GoombaCast.Views;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,9 +33,9 @@ namespace GoombaCast.ViewModels
         private const int StreamingTimerInterval = 500;   // Streaming time display update rate
 
         // Dependency-injected services
-        private readonly IDialogService _dialogService;
         private readonly AudioEngine _audioEngine;
         private readonly ILoggingService _loggingService;
+        private readonly IServiceProvider _serviceProvider; // ADD THIS
         private readonly CancellationTokenSource _cts = new();
         private bool _disposed;
 
@@ -71,31 +73,30 @@ namespace GoombaCast.ViewModels
         [ObservableProperty] private string _recordButtonText = "Start Recording";
         [ObservableProperty] private bool _isRecordButtonEnabled = true;
 
-        // Commands
-        public IAsyncRelayCommand? OpenSettingsCommand { get; private set; }
-        public IAsyncRelayCommand? ToggleStreamCommand { get; private set; }
-        public IRelayCommand?      ToggleRecordCommand { get; private set; }
-
         /// <summary>
         /// Default constructor for design-time use
         /// </summary>
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         public MainWindowViewModel() { }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
         /// <summary>
         /// Initializes a new instance of the MainWindowViewModel with required services
         /// </summary>
         /// <param name="audioEngine">The audio engine service for stream handling</param>
-        /// <param name="dialogService">The dialog service for showing windows</param>
         /// <param name="loggingService">The logging service for application events</param>
+        /// <param name="serviceProvider">Service provider for resolving dependencies</param>
         /// <exception cref="ArgumentNullException">Thrown if any required service is null</exception>
-        public MainWindowViewModel(AudioEngine audioEngine, IDialogService dialogService, ILoggingService loggingService)
+        public MainWindowViewModel(
+            AudioEngine audioEngine,
+            ILoggingService loggingService,
+            IServiceProvider serviceProvider)
         {
             _audioEngine = audioEngine ?? throw new ArgumentNullException(nameof(audioEngine));
-            _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
             _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
+            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
             InitializeViewModel();
-            SetupCommands();
             SetupEventHandlers();
             InitializeTimers();
             ScanInputDevices();
@@ -113,16 +114,6 @@ namespace GoombaCast.ViewModels
         }
 
         /// <summary>
-        /// Sets up command bindings for UI interactions
-        /// </summary>
-        private void SetupCommands()
-        {
-            OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
-            ToggleStreamCommand = new AsyncRelayCommand(ToggleStream);
-            ToggleRecordCommand = new RelayCommand(ToggleRecording);
-        }
-
-        /// <summary>
         /// Sets up event handlers for audio engine and logging events
         /// </summary>
         private void SetupEventHandlers()
@@ -130,7 +121,7 @@ namespace GoombaCast.ViewModels
             App.Audio.LevelsAvailable += OnLevelsAvailable;
             App.Audio.ClippingDetected += OnClippingDetected;
             _loggingService!.LogLineAdded += OnLogLineAdded;
-            VolumeLevel = (int)App.Audio.GetGainLevel();
+            VolumeLevel = (int)App.Audio.GetMasterGainLevel();
         }
 
         /// <summary>
@@ -224,7 +215,7 @@ namespace GoombaCast.ViewModels
         public void WriteLineToLog(string message)
         {
             if (string.IsNullOrEmpty(message)) return;
-            
+
             LogLines += $"{message}\n";
 
             Dispatcher.UIThread.Post(() =>
@@ -282,10 +273,32 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Opens the settings dialog
         /// </summary>
+        [RelayCommand]
         private async Task OpenSettingsAsync()
         {
-            if (_dialogService != null)
-                await _dialogService.ShowSettingsDialogAsync().ConfigureAwait(false);
+            var viewModel = _serviceProvider.GetRequiredService<SettingsWindowViewModel>();
+
+            var dialog = new SettingsWindow
+            {
+                DataContext = viewModel
+            };
+
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                // Subscribe to stream name changes
+                void OnStreamNameChanged(object? s, string name) => UpdateWindowTitle(name);
+                viewModel.StreamNameChanged += OnStreamNameChanged;
+
+                try
+                {
+                    await dialog.ShowDialog(desktop.MainWindow!).ConfigureAwait(false);
+                }
+                finally
+                {
+                    // Clean up event subscription
+                    viewModel.StreamNameChanged -= OnStreamNameChanged;
+                }
+            }
         }
 
         // Generated property change handlers
@@ -297,7 +310,7 @@ namespace GoombaCast.ViewModels
                 settings.VolumeLevel = value;
                 SettingsService.Default.Save();
             }
-            _audioEngine?.SetGainLevel(value);
+            _audioEngine?.SetMasterGainLevel(value);
         }
 
         partial void OnLeftPeakDbChanged(float value)
@@ -309,6 +322,7 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Toggles the streaming state between starting and stopping
         /// </summary>
+        [RelayCommand]
         private async Task ToggleStream()
         {
             var settings = SettingsService.Default.Settings;
@@ -341,6 +355,11 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private async Task StartStreaming(string streamName)
         {
+            if (App.Audio.InputSources.Count == 0)
+            {
+                Logging.LogWarning("No input sources available to start streaming.");
+                return;
+            }
             await App.Audio.StartBroadcastAsync().ConfigureAwait(true);
             StartTimer();
             IsStreaming = true;
@@ -363,8 +382,15 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Toggles the recording state between starting and stopping
         /// </summary>
-        private void ToggleRecording()
+        [RelayCommand]
+        private void ToggleRecord()
         {
+            if (App.Audio.InputSources.Count == 0)
+            {
+                Logging.LogWarning("No input sources available to start recording.");
+                return;
+            }
+
             var settings = SettingsService.Default.Settings;
             IsRecordButtonEnabled = false;
 
