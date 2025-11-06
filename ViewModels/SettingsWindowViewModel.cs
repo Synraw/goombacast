@@ -44,8 +44,6 @@ namespace GoombaCast.ViewModels
 
             LoadSettings();
             LoadInputSources();
-
-            InputSources.CollectionChanged += InputSources_CollectionChanged;
         }
 
         private void LoadSettings()
@@ -68,6 +66,7 @@ namespace GoombaCast.ViewModels
 
         private void LoadInputSources()
         {
+            InputSources.CollectionChanged += InputSources_CollectionChanged;
             InputSources.Clear();
             foreach (var source in _audioEngine.InputSources)
             {

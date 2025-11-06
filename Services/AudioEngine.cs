@@ -109,6 +109,7 @@ namespace GoombaCast.Services
                 UseRmsLevels = true,
                 LevelFloorDb = -90f
             };
+
             _levelMeter.LevelsAvailable += (l, r) => LevelsAvailable?.Invoke(l, r);
             _levelMeter.ClippingDetected += (isClipping) => ClippingDetected?.Invoke(isClipping);
 
@@ -146,7 +147,7 @@ namespace GoombaCast.Services
         // ============================================================================
 
         public void SetMasterGainLevel(float gainDb)
-          => _masterGain!.GainDb = gainDb;
+            => _masterGain!.GainDb = gainDb;
 
         public float GetMasterGainLevel()
             => _masterGain!.GainDb;
