@@ -314,5 +314,13 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                 Array.Copy(_outputBuffer, 0, buffer, offset, count);
             }
         }
+
+        public void ClearInputSources()
+        {
+            lock (_mixLock)
+            {
+                _inputBuffers.Clear();
+            }
+        }
     }
 }

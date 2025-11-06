@@ -60,6 +60,10 @@ namespace GoombaCast.Models.Audio.Streaming
         private float[]? _filterState;
         private Random? _ditherRng;
 
+        // Store event handlers so we can unsubscribe them
+        private EventHandler<WaveInEventArgs>? _dataAvailableHandler;
+        private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
+
         public InputDevice? CurrentInputDevice => _inputDevice;
         public WaveFormat WaveFormat => _outputFormat; // Always return 48kHz format
         public bool IsRunning => _running;
@@ -87,6 +91,8 @@ namespace GoombaCast.Models.Audio.Streaming
                     throw;
                 }
             }
+            
+            _mic?.StartRecording();
         }
 
         public void Stop()
@@ -110,6 +116,13 @@ namespace GoombaCast.Models.Audio.Streaming
                         {
                             Logging.LogError($"Error stopping recording: {ex.Message}");
                         }
+                        
+                        // Unsubscribe event handlers to prevent deadlock
+                        if (_dataAvailableHandler != null)
+                            _mic.DataAvailable -= _dataAvailableHandler;
+                        if (_recordingStoppedHandler != null)
+                            _mic.RecordingStopped -= _recordingStoppedHandler;
+                        
                         _mic.Dispose();
                         _mic = null;
                     }
@@ -220,16 +233,25 @@ namespace GoombaCast.Models.Audio.Streaming
                 NotifyHandlersStart();
             }
 
-            // Attach event handlers and start recording
+            // Attach event handlers
             AttachEventHandlers(nativeFormat);
-            _mic.StartRecording();
         }
 
         private void DisposeCurrentMic()
         {
             if (_mic != null)
             {
-                try { _mic.StopRecording(); } catch { /* ignore */ }
+                try 
+                { 
+                    _mic.StopRecording(); 
+                } 
+                catch { /* ignore */ }
+                
+                if (_dataAvailableHandler != null)
+                    _mic.DataAvailable -= _dataAvailableHandler;
+                if (_recordingStoppedHandler != null)
+                    _mic.RecordingStopped -= _recordingStoppedHandler;
+                
                 _mic.Dispose();
                 _mic = null;
             }
@@ -276,7 +298,8 @@ namespace GoombaCast.Models.Audio.Streaming
             var sourceSampleRate = nativeFormat.SampleRate;
             var sourceBitsPerSample = nativeFormat.BitsPerSample;
 
-            _mic!.DataAvailable += (s, a) =>
+            // Store lambdas as fields so we can unsubscribe later
+            _dataAvailableHandler = (s, a) =>
             {
                 if (micRef != _mic || !_running) return;
 
@@ -290,7 +313,7 @@ namespace GoombaCast.Models.Audio.Streaming
                 }
             };
 
-            _mic!.RecordingStopped += (s, a) =>
+            _recordingStoppedHandler = (s, a) =>
             {
                 if (_deviceSwitchInProgress) return;
 
@@ -300,17 +323,32 @@ namespace GoombaCast.Models.Audio.Streaming
                     Stop();
                 }
             };
+
+            _mic!.DataAvailable += _dataAvailableHandler;
+            _mic!.RecordingStopped += _recordingStoppedHandler;
         }
 
-        private void ProcessAudioData(byte[] inputBuffer, int bytesRecorded, int sourceChannels, int sourceSampleRate, int sourceBitsPerSample, WaveFormatEncoding encoding, WasapiCapture micRef)
+        private void ProcessAudioData(byte[] inputBuffer, 
+            int bytesRecorded, 
+            int sourceChannels, 
+            int sourceSampleRate, 
+            int sourceBitsPerSample, 
+            WaveFormatEncoding encoding, 
+            WasapiCapture micRef)
         {
-            var handlers = _handlerSnapshot;
+            // Early exit if not running
+            if (micRef != _mic || !_running) return;
 
             // Step 1: Convert to 16-bit stereo at native sample rate
             int convertedLength = ConvertToStereoInt16(inputBuffer, bytesRecorded, sourceChannels, sourceBitsPerSample, encoding);
 
             // Step 2: Resample to 48kHz if needed
             (byte[] outputBuffer, int outputLength) = ResampleIfNeeded(convertedLength, sourceSampleRate);
+
+            // Check again before processing handlers
+            if (!_running) return;
+
+            var handlers = _handlerSnapshot;
 
             // Step 3: Send to handlers
             ProcessHandlers(handlers, outputBuffer, outputLength);
@@ -386,21 +424,38 @@ namespace GoombaCast.Models.Audio.Streaming
 
         private void WriteToEncoder(byte[] buffer, int length, WasapiCapture micRef)
         {
-            lock (_micLock)
+            if (!_running || micRef != _mic) return;
+            
+            var writer = _mp3Writer; // Local copy
+            if (writer != null)
             {
-                if (_mp3Writer != null && micRef == _mic)
+                try
                 {
-                    _mp3Writer.Write(buffer, 0, length);
+                    writer.Write(buffer, 0, length);
                 }
+                catch (ObjectDisposedException) { /*Can be ignored*/ }
             }
         }
 
         private void RestartCapture()
         {
+            WasapiCapture? newMic = null;
+            
             try
             {
                 lock (_micLock)
                 {
+                    if (_mic != null)
+                    {
+                        if (_dataAvailableHandler != null)
+                            _mic.DataAvailable -= _dataAvailableHandler;
+                        if (_recordingStoppedHandler != null)
+                            _mic.RecordingStopped -= _recordingStoppedHandler;
+                        
+                        _dataAvailableHandler = null;
+                        _recordingStoppedHandler = null;
+                    }
+                    
                     try 
                     { 
                         _mic?.StopRecording(); 
@@ -412,7 +467,10 @@ namespace GoombaCast.Models.Audio.Streaming
 
                     // Keep MP3 writer and Icecast stream alive; just swap the input device
                     CreateAndStartMic(notifyHandlers: false);
+                    newMic = _mic;
                 }
+                
+                newMic?.StartRecording();
             }
             finally
             {

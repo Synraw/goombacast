@@ -70,24 +70,23 @@ namespace GoombaCast.Models.Audio.Streaming
             _mp3Writer = new LameMP3FileWriter(_iceStream, _outputFormat, 320);
 
             InitializeBuffers();
-            
+
             if (notifyHandlers)
             {
                 NotifyHandlersStart();
             }
 
             AttachEventHandlers();
-            _loopback.StartRecording();
         }
 
         private void InitializeBuffers()
         {
             var settings = SettingsService.Default.Settings;
             var sourceFormat = _loopback!.WaveFormat;
-            
+
             // Calculate conversion buffer size
             int conversionBufferSize = CalculateBufferSize(
-                sourceFormat.AverageBytesPerSecond, 
+                sourceFormat.AverageBytesPerSecond,
                 settings.ConversionBufferMs);
             _conversionBuffer = new byte[conversionBufferSize];
 
@@ -98,14 +97,14 @@ namespace GoombaCast.Models.Audio.Streaming
 
             // Ensure conversion buffer is large enough
             int requiredSize = CalculateBufferSize(
-                sourceFormat.AverageBytesPerSecond, 
+                sourceFormat.AverageBytesPerSecond,
                 targetBufferMs);
-            
+
             if (_conversionBuffer.Length < requiredSize * 2)
             {
                 _conversionBuffer = new byte[requiredSize * 2];
             }
-            
+
             _resampleBuffer = new byte[alignedBufferSize * 2];
         }
 
@@ -131,9 +130,9 @@ namespace GoombaCast.Models.Audio.Streaming
             var sourceSampleRate = _loopback!.WaveFormat.SampleRate;
 
             _dataAvailableHandler = (s, a) => ProcessAudioData(
-                a, 
-                loopbackRef, 
-                sourceChannels, 
+                a,
+                loopbackRef,
+                sourceChannels,
                 sourceSampleRate);
 
             _recordingStoppedHandler = (s, a) => HandleRecordingStopped(loopbackRef);
@@ -142,42 +141,40 @@ namespace GoombaCast.Models.Audio.Streaming
             _loopback.RecordingStopped += _recordingStoppedHandler;
         }
 
-        private void ProcessAudioData(
-            WaveInEventArgs args, 
-            WasapiLoopbackCapture loopbackRef, 
-            int sourceChannels, 
-            int sourceSampleRate)
+        private void ProcessAudioData(WaveInEventArgs args, WasapiLoopbackCapture loopbackRef, int sourceChannels, int sourceSampleRate)
         {
             if (loopbackRef != _loopback || !_running) return;
 
             try
             {
-                var handlers = _handlerSnapshot;
-
                 // Step 1: Convert to stereo Int16
                 var (outputBuffer, outputLength) = ConvertAndResample(
-                    args.Buffer, 
-                    args.BytesRecorded, 
-                    sourceChannels, 
+                    args.Buffer,
+                    args.BytesRecorded,
+                    sourceChannels,
                     sourceSampleRate);
+
+                // Check again before processing handlers (double-check pattern)
+                if (!_running) return;
+
+                var handlers = _handlerSnapshot;
 
                 // Step 2: Send to handlers
                 ProcessHandlers(handlers, outputBuffer, outputLength);
 
                 // Step 3: Write to MP3
                 WriteToMp3(outputBuffer, outputLength, loopbackRef);
-            }
+            }   
             catch (Exception ex)
             {
                 Logging.LogError($"Error processing loopback audio: {ex.Message}");
-                Stop();
             }
         }
 
         private (byte[] buffer, int length) ConvertAndResample(
-            byte[] sourceBuffer, 
-            int bytesRecorded, 
-            int sourceChannels, 
+            byte[] sourceBuffer,
+            int bytesRecorded,
+            int sourceChannels,
             int sourceSampleRate)
         {
             // Convert float32 to int16 stereo
@@ -198,9 +195,9 @@ namespace GoombaCast.Models.Audio.Streaming
             if (sourceSampleRate != _outputFormat.SampleRate)
             {
                 AudioResampler.ApplyAntiAliasingFilter(
-                    _conversionBuffer, 
-                    convertedLength, 
-                    sourceSampleRate, 
+                    _conversionBuffer,
+                    convertedLength,
+                    sourceSampleRate,
                     ref _filterState!);
 
                 int outputLength = AudioResampler.ResampleTo48kHz(
@@ -209,7 +206,7 @@ namespace GoombaCast.Models.Audio.Streaming
                     sourceSampleRate,
                     _resampleBuffer!,
                     ref _resampleBuffer!);
-                
+
                 return (_resampleBuffer!, outputLength);
             }
 
@@ -230,12 +227,16 @@ namespace GoombaCast.Models.Audio.Streaming
 
         private void WriteToMp3(byte[] buffer, int length, WasapiLoopbackCapture loopbackRef)
         {
-            lock (_loopbackLock)
+            if (!_running || loopbackRef != _loopback) return;
+            
+            var writer = _mp3Writer;
+            if (writer != null)
             {
-                if (_mp3Writer != null && loopbackRef == _loopback)
+                try
                 {
-                    _mp3Writer.Write(buffer, 0, length);
+                    writer.Write(buffer, 0, length);
                 }
+                catch (ObjectDisposedException) { /*Can safely ignore*/ }
             }
         }
 
@@ -265,7 +266,15 @@ namespace GoombaCast.Models.Audio.Streaming
                     _recordingStoppedHandler = null;
                 }
 
-                try { _loopback.StopRecording(); } catch { /* ignore */ }
+                try
+                {
+                    _loopback.StopRecording();
+                }
+                catch (Exception ex)
+                {
+                    Logging.LogError($"Error stopping loopback during cleanup: {ex.Message}");
+                }
+
                 _loopback.Dispose();
                 _loopback = null;
             }
@@ -273,7 +282,7 @@ namespace GoombaCast.Models.Audio.Streaming
             _conversionBuffer = null;
             _resampleBuffer = null;
 
-            // Reset filter state to prevent artifacts on next start (NEW)
+            // Reset filter state to prevent artifacts on next start
             if (_filterState != null)
             {
                 Array.Clear(_filterState, 0, _filterState.Length);
@@ -305,10 +314,23 @@ namespace GoombaCast.Models.Audio.Streaming
 
         private void RestartCapture()
         {
+            WasapiLoopbackCapture? newLoopback = null;
+
             try
             {
                 lock (_loopbackLock)
                 {
+                    if (_loopback != null)
+                    {
+                        if (_dataAvailableHandler != null)
+                            _loopback.DataAvailable -= _dataAvailableHandler;
+                        if (_recordingStoppedHandler != null)
+                            _loopback.RecordingStopped -= _recordingStoppedHandler;
+
+                        _dataAvailableHandler = null;
+                        _recordingStoppedHandler = null;
+                    }
+
                     try { _loopback?.StopRecording(); } catch { /* ignore */ }
                     _loopback?.Dispose();
                     _loopback = null;
@@ -325,7 +347,11 @@ namespace GoombaCast.Models.Audio.Streaming
                     {
                         _mp3Writer = new LameMP3FileWriter(_iceStream, _outputFormat, 320);
                     }
+
+                    newLoopback = _loopback;
                 }
+
+                newLoopback?.StartRecording();
             }
             finally
             {
@@ -353,6 +379,8 @@ namespace GoombaCast.Models.Audio.Streaming
                     throw;
                 }
             }
+
+            _loopback?.StartRecording();
         }
 
         public void Stop()
@@ -367,7 +395,33 @@ namespace GoombaCast.Models.Audio.Streaming
                 {
                     var handlers = _handlerSnapshot;
 
-                    CleanupCapture();
+                    if (_loopback != null)
+                    {
+                        if (_dataAvailableHandler != null)
+                        {
+                            _loopback.DataAvailable -= _dataAvailableHandler;
+                        }
+                        if (_recordingStoppedHandler != null)
+                        {
+                            _loopback.RecordingStopped -= _recordingStoppedHandler;
+                        }
+
+                        try
+                        {
+                            _loopback.StopRecording();
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.LogError($"Error stopping loopback: {ex.Message}");
+                        }
+
+                        _loopback.Dispose();
+                        _loopback = null;
+                    }
+
+                    // Null out handlers after unsubscribing
+                    _dataAvailableHandler = null;
+                    _recordingStoppedHandler = null;
 
                     if (_mp3Writer != null)
                     {
@@ -387,11 +441,14 @@ namespace GoombaCast.Models.Audio.Streaming
                         }
                     }
 
-                    // Reset filter state to prevent artifacts on next start (NEW)
+                    // Reset filter state and buffers
                     if (_filterState != null)
                     {
                         Array.Clear(_filterState, 0, _filterState.Length);
                     }
+
+                    _conversionBuffer = null;
+                    _resampleBuffer = null;
                 }
                 catch (Exception ex)
                 {

@@ -37,6 +37,9 @@ namespace GoombaCast.Services
         private LimiterAudioHandler? _limiter;
         private AudioRecorderHandler? _recorder;
 
+        // Disposal flag
+        private volatile bool _isDisposing = false;
+
         // Null stream to discard individual source output
         private readonly NullIcecastStream _nullStream = new();
 
@@ -234,19 +237,8 @@ namespace GoombaCast.Services
             lock (_sourcesLock)
             {
                 if (!_inputSources.Remove(source)) return;
-
-                _mixer.RemoveInputSource(source);
-
-                // Reassign clock source if needed
-                if (_clockSourceId == source.Id)
-                {
-                    _clockSourceId = _inputSources.FirstOrDefault()?.Id;
-                }
-
-                source.Dispose();
-                SyncInputSourcesToSettings();
-
-                Logging.Log($"Removed source: {source.Name}");
+                
+                RemoveInputSourceInternal(source);
             }
         }
 
@@ -258,50 +250,45 @@ namespace GoombaCast.Services
             lock (_sourcesLock)
             {
                 var source = _inputSources.FirstOrDefault(s => s.Id == sourceId);
-                if (source != null)
+                if (source != null && _inputSources.Remove(source))
                 {
-                    RemoveInputSource(source);
+                    RemoveInputSourceInternal(source);
                 }
             }
         }
 
         /// <summary>
-        /// Changes the device for an existing input source
+        /// Internal method that removes a source (must be called with lock held)
         /// </summary>
-        public bool ChangeInputSourceDevice(Guid sourceId, string newDeviceId)
+        private void RemoveInputSourceInternal(AudioInputSource source)
         {
-            lock (_sourcesLock)
-            {
-                var source = _inputSources.FirstOrDefault(s => s.Id == sourceId);
-                if (source == null) return false;
+            _mixer.RemoveInputSource(source);
 
+            // Reassign clock source if needed
+            if (_clockSourceId == source.Id)
+            {
+                _clockSourceId = _inputSources.FirstOrDefault()?.Id;
+            }
+
+            // Only sync if not disposing
+            if (!_isDisposing)
+            {
+                SyncInputSourcesToSettings();
+            }
+
+            Logging.Log($"Removed source: {source.Name}");
+            
+            Task.Run(() =>
+            {
                 try
                 {
-                    // Stop and dispose old stream
-                    source.Stream?.Stop();
-                    source.Stream?.Dispose();
-
-                    // Create new stream with new device
-                    var (deviceName, newStream) = CreateAudioStream(newDeviceId, source.StreamType);
-
-                    // Update source
-                    source.DeviceId = newDeviceId;
-                    source.Name = deviceName;
-                    source.SetStream(newStream);
-
-                    // Route to mixer
-                    newStream.AddAudioHandler(new InputSourceHandler(source.Id, _mixer, this, source));
-                    newStream.Start();
-
-                    Logging.Log($"Changed device for {source.Name} to {deviceName}");
-                    return true;
+                    source.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    Logging.LogError($"Failed to change device: {ex.Message}");
-                    return false;
+                    Logging.LogError($"Error disposing source {source.Name}: {ex.Message}");
                 }
-            }
+            });
         }
 
         /// <summary>
@@ -309,11 +296,26 @@ namespace GoombaCast.Services
         /// </summary>
         public void ClearInputSources()
         {
+            List<AudioInputSource> sourcesToDispose;
+            
             lock (_sourcesLock)
             {
-                foreach (var source in _inputSources.ToList())
+                sourcesToDispose = _inputSources.ToList();
+                _inputSources.Clear();
+                _mixer.ClearInputSources(); // Assuming this method exists
+                _clockSourceId = null;
+            }
+            
+            // Dispose all sources OUTSIDE the lock
+            foreach (var source in sourcesToDispose)
+            {
+                try
                 {
-                    RemoveInputSource(source);
+                    source.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Logging.LogError($"Error disposing source {source.Name}: {ex.Message}");
                 }
             }
         }
@@ -323,10 +325,10 @@ namespace GoombaCast.Services
         // ============================================================================
 
         public static InputDevice? FindInputDevice(string deviceId)
-       => InputDevice.GetActiveInputDevices().Find(d => d.Id == deviceId);
+            => InputDevice.GetActiveInputDevices().Find(d => d.Id == deviceId);
 
         public static OutputDevice? FindOutputDevice(string deviceId)
-          => OutputDevice.GetActiveOutputDevices().Find(d => d.Id == deviceId);
+            => OutputDevice.GetActiveOutputDevices().Find(d => d.Id == deviceId);
 
         // ============================================================================
         // Private Helpers
@@ -388,16 +390,24 @@ namespace GoombaCast.Services
 
         public async ValueTask DisposeAsync()
         {
-            ClearInputSources();
+            _isDisposing = true;
+            
             _mixerStream?.Stop();
+
+            ClearInputSources();
 
             if (_recorder != null)
             {
-                await Task.Run(() => _recorder.Dispose());
+                await Task.Run(() => _recorder.Dispose()).ConfigureAwait(false);
             }
 
             _mixerStream?.Dispose();
             _nullStream?.Dispose();
+
+            if (_icecastStream.IsOpen)
+            {
+                await _icecastStream.DisposeAsync().ConfigureAwait(false);
+            }
         }
 
         // ============================================================================

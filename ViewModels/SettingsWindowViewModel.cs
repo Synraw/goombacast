@@ -6,6 +6,8 @@ using GoombaCast.Services;
 using GoombaCast.Views;
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -14,6 +16,7 @@ namespace GoombaCast.ViewModels
     public partial class SettingsWindowViewModel : ViewModelBase
     {
         private readonly SettingsService _settingsService = SettingsService.Default;
+        private readonly AudioEngine _audioEngine;
 
         public event EventHandler<string>? StreamNameChanged;
 
@@ -33,10 +36,16 @@ namespace GoombaCast.ViewModels
         // Mixer Properties
         public ObservableCollection<AudioInputSource> InputSources { get; } = new();
 
-        public SettingsWindowViewModel()
+        public SettingsWindowViewModel(AudioEngine audioEngine)
         {
+            ArgumentNullException.ThrowIfNull(audioEngine);
+
+            _audioEngine = audioEngine;
+
             LoadSettings();
             LoadInputSources();
+
+            InputSources.CollectionChanged += InputSources_CollectionChanged;
         }
 
         private void LoadSettings()
@@ -60,9 +69,48 @@ namespace GoombaCast.ViewModels
         private void LoadInputSources()
         {
             InputSources.Clear();
-            foreach (var source in App.Audio.InputSources)
+            foreach (var source in _audioEngine.InputSources)
             {
                 InputSources.Add(source);
+            }
+        }
+
+        private void InputSources_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            // Hook up property changed events for newly added items
+            if (e.NewItems != null)
+            {
+                foreach (AudioInputSource source in e.NewItems)
+                {
+                    source.PropertyChanged += InputSource_PropertyChanged;
+                }
+            }
+
+            // Unhook property changed events for removed items
+            if (e.OldItems != null)
+            {
+                foreach (AudioInputSource source in e.OldItems)
+                {
+                    source.PropertyChanged -= InputSource_PropertyChanged;
+                }
+            }
+        }
+
+        private void InputSource_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(AudioInputSource.IsSolo) && sender is AudioInputSource soloedSource)
+            {
+                // If this source was just set to solo, unsolo all others
+                if (soloedSource.IsSolo)
+                {
+                    foreach (var source in InputSources)
+                    {
+                        if (source != soloedSource && source.IsSolo)
+                        {
+                            source.IsSolo = false;
+                        }
+                    }
+                }
             }
         }
 
@@ -71,7 +119,7 @@ namespace GoombaCast.ViewModels
             var settings = _settingsService.Settings;
             settings.LimiterEnabled = value;
             _settingsService.Save();
-            App.Audio.SetLimiterEnabled(value);
+            _audioEngine.SetLimiterEnabled(value);
         }
 
         partial void OnLimiterThresholdChanged(float value)
@@ -79,7 +127,7 @@ namespace GoombaCast.ViewModels
             var settings = _settingsService.Settings;
             settings.LimiterThreshold = value;
             _settingsService.Save();
-            App.Audio.SetLimiterThreshold(value);
+            _audioEngine.SetLimiterThreshold(value);
         }
 
         partial void OnServerAddressChanged(string value)
@@ -140,14 +188,14 @@ namespace GoombaCast.ViewModels
         private async Task AddInputSource()
         {
             // Show device selection dialog
-            var dialog = new DeviceSelectionDialog();
+            var dialog = new DeviceSelectionDialog(_audioEngine);
             var result = await dialog.ShowDialog<DeviceSelectionResult?>(GetParentWindow()!);
 
             if (result != null && !string.IsNullOrEmpty(result.DeviceId))
             {
                 try
                 {
-                    var source = App.Audio.AddInputSource(result.DeviceId, result.StreamType);
+                    var source = _audioEngine.AddInputSource(result.DeviceId, result.StreamType);
                     InputSources.Add(source);
                 }
                 catch (Exception ex)
@@ -162,7 +210,7 @@ namespace GoombaCast.ViewModels
         {
             if (source != null)
             {
-                App.Audio.RemoveInputSource(source);
+                _audioEngine.RemoveInputSource(source);
                 InputSources.Remove(source);
             }
         }
@@ -176,7 +224,6 @@ namespace GoombaCast.ViewModels
         }
     }
 
-    // Helper class for device selection result
     public class DeviceSelectionResult
     {
         public string DeviceId { get; set; } = string.Empty;

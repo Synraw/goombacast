@@ -18,10 +18,6 @@ namespace GoombaCast
     public partial class App : Application, IAsyncDisposable
     {
         private ServiceProvider? _serviceProvider;
-        private static AudioEngine? _audio;
-
-        public static AudioEngine Audio => _audio ??
-            throw new InvalidOperationException("AudioEngine not initialized");
 
         public override void Initialize()
             => AvaloniaXamlLoader.Load(this);
@@ -37,7 +33,6 @@ namespace GoombaCast
             {
                 ConfigureServices(desktop);
                 ConfigureMainWindow(desktop);
-                InitializeAudioEngine();
             }
             catch (Exception ex)
             {
@@ -72,8 +67,6 @@ namespace GoombaCast
             var loggingService = _serviceProvider.GetRequiredService<ILoggingService>();
             Logging.Initialize(loggingService);
 
-            _audio = _serviceProvider.GetRequiredService<AudioEngine>();
-
             DisableAvaloniaDataAnnotationValidation();
         }
 
@@ -88,14 +81,17 @@ namespace GoombaCast
             var viewModel = _serviceProvider.GetRequiredService<MainWindowViewModel>();
             mainWindow.DataContext = viewModel;
 
+            var audioEngine = _serviceProvider.GetRequiredService<AudioEngine>();
+            InitializeAudioEngine(audioEngine);
+
             desktop.Exit += OnApplicationExit;
         }
 
-        private async void OnApplicationExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
+        private void OnApplicationExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
         {
             try
             {
-                await DisposeAsync();
+                DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -103,21 +99,20 @@ namespace GoombaCast
             }
         }
 
-        private void InitializeAudioEngine()
+        private void InitializeAudioEngine(AudioEngine audioEngine)
         {
-            if (_audio == null)
-                throw new InvalidOperationException("AudioEngine not initialized");
+            ArgumentNullException.ThrowIfNull(audioEngine);
 
             try
             {
                 var settings = SettingsService.Default.Settings;
 
                 // Configure limiter
-                _audio.SetLimiterEnabled(settings.LimiterEnabled);
-                _audio.SetLimiterThreshold(settings.LimiterThreshold);
+                audioEngine.SetLimiterEnabled(settings.LimiterEnabled);
+                audioEngine.SetLimiterThreshold(settings.LimiterThreshold);
 
                 // Restore or initialize input sources
-                RestoreInputSources(settings);
+                RestoreInputSources(settings, audioEngine);
             }
             catch (Exception ex)
             {
@@ -126,25 +121,25 @@ namespace GoombaCast
             }
         }
 
-        private void RestoreInputSources(AppSettings settings)
+        private void RestoreInputSources(AppSettings settings, AudioEngine audioEngine)
         {
             if (settings.InputSources != null && settings.InputSources.Count > 0)
             {
-                RestoreSavedInputSources(settings.InputSources);
+                RestoreSavedInputSources(settings.InputSources, audioEngine);
             }
             else
             {
-                AddDefaultInputSource();
+                AddDefaultInputSource(audioEngine);
             }
         }
 
-        private void RestoreSavedInputSources(List<AppSettings.InputSourceConfig> sourceConfigs)
+        private void RestoreSavedInputSources(List<AppSettings.InputSourceConfig> sourceConfigs, AudioEngine audioEngine)
         {
             foreach (var sourceConfig in sourceConfigs.ToList())
             {
                 try
                 {
-                    var source = _audio!.AddInputSource(sourceConfig.DeviceId, sourceConfig.StreamType);
+                    var source = audioEngine.AddInputSource(sourceConfig.DeviceId, sourceConfig.StreamType);
                     source.Volume = sourceConfig.Volume;
                     source.IsMuted = sourceConfig.IsMuted;
                     source.IsSolo = sourceConfig.IsSolo;
@@ -156,14 +151,14 @@ namespace GoombaCast
             }
         }
 
-        private void AddDefaultInputSource()
+        private void AddDefaultInputSource(AudioEngine audioEngine)
         {
             try
             {
                 var defaultMic = InputDevice.GetDefaultInputDevice();
                 if (defaultMic != null)
                 {
-                    _audio!.AddInputSource(defaultMic.Id, AudioEngine.AudioStreamType.Microphone);
+                    audioEngine.AddInputSource(defaultMic.Id, AudioEngine.AudioStreamType.Microphone);
                 }
             }
             catch (Exception ex)
@@ -191,11 +186,15 @@ namespace GoombaCast
 
             try
             {
-                await Task.Run(() => _audio?.Dispose());
+                var audioEngine = _serviceProvider.GetService<AudioEngine>();
+                if (audioEngine != null)
+                {
+                    await audioEngine.DisposeAsync().ConfigureAwait(false);
+                }
 
                 if (_serviceProvider is IAsyncDisposable asyncDisposable)
                 {
-                    await asyncDisposable.DisposeAsync();
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
                 }
                 else
                 {
@@ -205,10 +204,10 @@ namespace GoombaCast
             catch (Exception ex)
             {
                 Logging.LogError($"Error disposing application resources: {ex}");
-                throw;
             }
             finally
             {
+                _serviceProvider = null;
                 GC.SuppressFinalize(this);
             }
         }

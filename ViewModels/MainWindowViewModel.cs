@@ -10,6 +10,7 @@ using GoombaCast.Services;
 using GoombaCast.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
@@ -35,7 +36,7 @@ namespace GoombaCast.ViewModels
         // Dependency-injected services
         private readonly AudioEngine _audioEngine;
         private readonly ILoggingService _loggingService;
-        private readonly IServiceProvider _serviceProvider; // ADD THIS
+        private readonly IServiceProvider _serviceProvider;
         private readonly CancellationTokenSource _cts = new();
         private bool _disposed;
 
@@ -78,7 +79,7 @@ namespace GoombaCast.ViewModels
         /// </summary>
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         public MainWindowViewModel() { }
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+#pragma warning restore CS8618 
 
         /// <summary>
         /// Initializes a new instance of the MainWindowViewModel with required services
@@ -92,9 +93,13 @@ namespace GoombaCast.ViewModels
             ILoggingService loggingService,
             IServiceProvider serviceProvider)
         {
-            _audioEngine = audioEngine ?? throw new ArgumentNullException(nameof(audioEngine));
-            _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
-            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            ArgumentNullException.ThrowIfNull(audioEngine, nameof(audioEngine));
+            ArgumentNullException.ThrowIfNull(loggingService, nameof(loggingService));
+            ArgumentNullException.ThrowIfNull(serviceProvider, nameof(serviceProvider));
+
+            _audioEngine = audioEngine;
+            _loggingService = loggingService;
+            _serviceProvider = serviceProvider;
 
             InitializeViewModel();
             SetupEventHandlers();
@@ -118,10 +123,10 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private void SetupEventHandlers()
         {
-            App.Audio.LevelsAvailable += OnLevelsAvailable;
-            App.Audio.ClippingDetected += OnClippingDetected;
-            _loggingService!.LogLineAdded += OnLogLineAdded;
-            VolumeLevel = (int)App.Audio.GetMasterGainLevel();
+            _audioEngine.LevelsAvailable += OnLevelsAvailable;
+            _audioEngine.ClippingDetected += OnClippingDetected;
+            _loggingService.LogLineAdded += OnLogLineAdded;
+            VolumeLevel = (int)_audioEngine.GetMasterGainLevel();
         }
 
         /// <summary>
@@ -150,13 +155,10 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private void UpdatePeakLevels(float leftDb, float rightDb)
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                LeftDb = leftDb;
-                RightDb = rightDb;
-                LeftPeakDb = leftDb > LeftPeakDb ? leftDb : LeftPeakDb;
-                RightPeakDb = rightDb > RightPeakDb ? rightDb : RightPeakDb;
-            });
+            LeftDb = leftDb;
+            RightDb = rightDb;
+            LeftPeakDb = leftDb > LeftPeakDb ? leftDb : LeftPeakDb;
+            RightPeakDb = rightDb > RightPeakDb ? rightDb : RightPeakDb;
         }
 
         /// <summary>
@@ -164,16 +166,13 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private void UpdatePeakFalloff(float decreaseAmount)
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (LeftPeakDb > LeftDb)
-                    LeftPeakDb = Math.Max(LeftDb, LeftPeakDb - decreaseAmount);
-                if (RightPeakDb > RightDb)
-                    RightPeakDb = Math.Max(RightDb, RightPeakDb - decreaseAmount);
+            if (LeftPeakDb > LeftDb)
+                LeftPeakDb = Math.Max(LeftDb, LeftPeakDb - decreaseAmount);
+            if (RightPeakDb > RightDb)
+                RightPeakDb = Math.Max(RightDb, RightPeakDb - decreaseAmount);
 
-                LeftDb = Math.Max(-90.0f, LeftDb - decreaseAmount);
-                RightDb = Math.Max(-90.0f, RightDb - decreaseAmount);
-            });
+            LeftDb = Math.Max(-90.0f, LeftDb - decreaseAmount);
+            RightDb = Math.Max(-90.0f, RightDb - decreaseAmount);
         }
 
         /// <summary>
@@ -181,7 +180,7 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private float CalculatePeakPosition(float peakDb)
         {
-            if (peakDb < -90.0f || peakDb == float.NaN)
+            if (peakDb < -90.0f || float.IsNaN(peakDb))
                 return 5.0f;
             return 5.0f + (peakDb + 90.0f) / 90.0f * ProgressBarWidth;
         }
@@ -198,7 +197,7 @@ namespace GoombaCast.ViewModels
 
         private async void OnIceStatsRefreshElapsed(object? sender, ElapsedEventArgs e)
         {
-            if (!App.Audio.IsBroadcasting) return;
+            if (!_audioEngine.IsBroadcasting) return;
             var icestats = await IcecastStats.GetStatsAsync().ConfigureAwait(false);
             ListenerCount = $"Listeners: {icestats?.GetListenerCount()}";
         }
@@ -231,7 +230,7 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Updates the window title with the stream name
         /// </summary>
-        public void UpdateWindowTitle(string streamName)
+        public void UpdateWindowTitle(string? streamName)
             => WindowTitle = string.IsNullOrEmpty(streamName) ? "GoombaCast" : $"GoombaCast: {streamName}";
 
         /// <summary>
@@ -257,8 +256,7 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private void ScanInputDevices()
         {
-            foreach (var device in InputDevice.GetActiveInputDevices())
-                Logging.Log($"Found input device: {device}");
+            ScanDevices(InputDevice.GetActiveInputDevices());
         }
 
         /// <summary>
@@ -266,8 +264,21 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private void ScanOutputDevices()
         {
-            foreach (var device in OutputDevice.GetActiveOutputDevices())
-                Logging.Log($"Found output device: {device}");
+            ScanDevices(OutputDevice.GetActiveOutputDevices());
+        }
+
+        private void ScanDevices<T>(IEnumerable<T> devices)
+        {
+            foreach (var device in devices)
+            {
+                string deviceType = device switch
+                {
+                    InputDevice => "input",
+                    OutputDevice => "output",
+                    _ => "unknown"
+                };
+                Logging.Log($"Found {deviceType} device: {device}");
+            }
         }
 
         /// <summary>
@@ -330,7 +341,7 @@ namespace GoombaCast.ViewModels
 
             try
             {
-                if (!App.Audio.IsBroadcasting)
+                if (!_audioEngine.IsBroadcasting)
                 {
                     await StartStreaming(settings.StreamName).ConfigureAwait(true);
                 }
@@ -341,7 +352,7 @@ namespace GoombaCast.ViewModels
             }
             catch (Exception ex)
             {
-                string startOrStop = App.Audio.IsBroadcasting ? "stopping" : "starting";
+                string startOrStop = _audioEngine.IsBroadcasting ? "stopping" : "starting";
                 Logging.LogError($"Error {startOrStop} stream: {ex.Message}");
             }
             finally
@@ -355,12 +366,12 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private async Task StartStreaming(string streamName)
         {
-            if (App.Audio.InputSources.Count == 0)
+            if (_audioEngine.InputSources.Count == 0)
             {
                 Logging.LogWarning("No input sources available to start streaming.");
                 return;
             }
-            await App.Audio.StartBroadcastAsync().ConfigureAwait(true);
+            await _audioEngine.StartBroadcastAsync().ConfigureAwait(true);
             StartTimer();
             IsStreaming = true;
             IsListenerCountVisible = true;
@@ -372,7 +383,7 @@ namespace GoombaCast.ViewModels
         /// </summary>
         private async Task StopStreaming(string streamName)
         {
-            await App.Audio.StopBroadcast();
+            await _audioEngine.StopBroadcast();
             StopTimer();
             IsStreaming = false;
             IsListenerCountVisible = false;
@@ -385,7 +396,7 @@ namespace GoombaCast.ViewModels
         [RelayCommand]
         private void ToggleRecord()
         {
-            if (App.Audio.InputSources.Count == 0)
+            if (_audioEngine.InputSources.Count == 0)
             {
                 Logging.LogWarning("No input sources available to start recording.");
                 return;
@@ -449,10 +460,9 @@ namespace GoombaCast.ViewModels
                 _peakResetTimer?.Dispose();
                 _cts.Dispose();
 
-                App.Audio.LevelsAvailable -= OnLevelsAvailable;
-                App.Audio.ClippingDetected -= OnClippingDetected;
-                if (_loggingService != null)
-                    _loggingService.LogLineAdded -= OnLogLineAdded;
+                _audioEngine.LevelsAvailable -= OnLevelsAvailable;
+                _audioEngine.ClippingDetected -= OnClippingDetected;
+                _loggingService.LogLineAdded -= OnLogLineAdded;
 
                 _disposed = true;
             }

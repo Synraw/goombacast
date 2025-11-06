@@ -16,8 +16,14 @@ namespace GoombaCast.Views
         private Border? _deviceInfoPanel;
         private TextBlock? _deviceInfoText;
 
-        public DeviceSelectionDialog()
+        private readonly AudioEngine? _audioEngine;
+
+        public DeviceSelectionDialog() { }
+
+        public DeviceSelectionDialog(AudioEngine audioEngine)
         {
+            ArgumentNullException.ThrowIfNull(audioEngine);
+            _audioEngine = audioEngine;
             InitializeComponent();
         }
 
@@ -141,7 +147,7 @@ namespace GoombaCast.Views
                     : ((OutputDevice)_deviceComboBox.SelectedItem).Id;
 
                 // Check if device is already added
-                var existingSource = App.Audio.InputSources.FirstOrDefault(s => s.DeviceId == deviceId);
+                var existingSource = _audioEngine!.InputSources.FirstOrDefault(s => s.DeviceId == deviceId);
                 if (existingSource != null)
                 {
                     ShowNoDevicesWarning("This device is already added to the mixer.");
