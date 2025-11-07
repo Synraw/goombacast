@@ -7,7 +7,6 @@ using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using static System.Windows.Forms.DataFormats;
 
 namespace GoombaCast.Models.Audio.Streaming
 {
@@ -305,7 +304,7 @@ namespace GoombaCast.Models.Audio.Streaming
 
                 try
                 {
-                    ProcessAudioData(a.Buffer, a.BytesRecorded, sourceChannels, sourceSampleRate, sourceBitsPerSample, nativeFormat.Encoding, micRef);
+                    ProcessAudioData(a.Buffer, a.BytesRecorded, sourceChannels, sourceSampleRate, sourceBitsPerSample, nativeFormat.Encoding, micRef!);
                 }
                 catch (Exception ex)
                 {

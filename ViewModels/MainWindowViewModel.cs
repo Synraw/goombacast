@@ -21,6 +21,7 @@ namespace GoombaCast.ViewModels
     /// <summary>
     /// ViewModel for the main window of GoombaCast, handling audio streaming controls, metering, and UI state.
     /// </summary>
+    /// 
     public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         // Meter display and update constants
@@ -53,6 +54,7 @@ namespace GoombaCast.ViewModels
         [ObservableProperty] private float _rightDb;              // Right channel current level
         [ObservableProperty] private bool _isClipping;            // Audio clipping indicator
         [ObservableProperty] private int _volumeLevel;            // Input gain control
+        [ObservableProperty] private bool _isLogVisible = true;   // Hide and show log window
 
         // Observable UI state properties
         [ObservableProperty] private string _windowTitle = "GoombaCast: (Design Time)";
@@ -116,6 +118,7 @@ namespace GoombaCast.ViewModels
             var settings = SettingsService.Default.Settings;
             VolumeLevel = settings.VolumeLevel;
             WindowTitle = $"GoombaCast: {settings.StreamName}";
+            IsLogVisible = !settings.HideLog;
         }
 
         /// <summary>

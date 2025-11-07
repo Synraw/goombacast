@@ -19,7 +19,8 @@ namespace GoombaCast.Models.Audio.Streaming
             PropertyNameCaseInsensitive = true
         };
 
-        private static readonly HttpClient _httpClient = new();
+        private static HttpClient? _httpClient;
+        private static HttpClient GetClient() => _httpClient ??= new HttpClient();
 
         [JsonPropertyName("icestats")]
         public Icestats? Stats { get; set; }
@@ -52,7 +53,7 @@ namespace GoombaCast.Models.Audio.Streaming
                 UriBuilder builder = new("http", uri.Host, 8000, "/status-json.xsl");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, builder.Uri);
-                var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+                var response = await GetClient().SendAsync(request).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -127,14 +128,13 @@ namespace GoombaCast.Models.Audio.Streaming
 
                 if (reader.TokenType == JsonTokenType.StartObject)
                 {
-                    // Single source
                     var source = JsonSerializer.Deserialize<Source>(ref reader, options);
                     return source != null ? new List<Source> { source } : null;
                 }
 
                 if (reader.TokenType == JsonTokenType.StartArray)
                 {
-                    // Multiple sources
+                    // Multiple sources - use source generator context
                     return JsonSerializer.Deserialize<List<Source>>(ref reader, options);
                 }
 

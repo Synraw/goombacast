@@ -269,13 +269,14 @@
 
 			<!-- Log Window -->
 			<TextBox Name="LogWindow"
-					 Grid.Row="5"
-					 Grid.ColumnSpan="4"
-					 Text="{Binding LogLines}"
-					 IsReadOnly="True"
-					 TextWrapping="Wrap"
-					 Margin="5,0,5,5"
-					 ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+			         Grid.Row="5"
+			         Grid.ColumnSpan="4"
+			         Text="{Binding LogLines}"
+			         IsVisible="{Binding IsLogVisible}"
+			         IsReadOnly="True"
+			         TextWrapping="Wrap"
+			         Margin="5,0,5,5"
+			         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
 		</Grid>
 	</Panel>
 </Window>

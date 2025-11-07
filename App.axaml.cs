@@ -9,6 +9,7 @@ using GoombaCast.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -87,11 +88,11 @@ namespace GoombaCast
             desktop.Exit += OnApplicationExit;
         }
 
-        private void OnApplicationExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
+        private async void OnApplicationExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
         {
             try
             {
-                DisposeAsync().AsTask().GetAwaiter().GetResult();
+                await DisposeAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {

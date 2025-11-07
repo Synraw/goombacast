@@ -10,8 +10,10 @@ namespace GoombaCast.Services
 {
     public class AppSettings
     {
+        [JsonPropertyName("hideLog")]
+        public bool HideLog { get; set; } = false;
         [JsonPropertyName("volumeLevel")]
-        public int VolumeLevel { get; set; }
+        public int VolumeLevel { get; set; } = 0;
         [JsonPropertyName("serverAddress")]
         public string ServerAddress { get; set; } = "http://localhost:8005/";
         [JsonPropertyName("streamName")]
@@ -36,7 +38,6 @@ namespace GoombaCast.Services
         [JsonPropertyName("inputSources")]
         public List<InputSourceConfig> InputSources { get; set; } = new();
         
-
         public bool IsValid()
         {
             return !string.IsNullOrWhiteSpace(ServerAddress) &&
@@ -47,7 +48,6 @@ namespace GoombaCast.Services
         public bool IsServerAddressValid()
             => Uri.TryCreate(ServerAddress, UriKind.Absolute, out var uri) &&
                (uri.Scheme == "http" || uri.Scheme == "https");
-
 
         public class InputSourceConfig
         {

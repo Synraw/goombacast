@@ -7,6 +7,8 @@ namespace GoombaCast.Models.Audio.AudioProcessing
     /// </summary>
     public static class AudioResampler
     {
+        const int TargetSampleRate = 48000; //48khz
+
         /// <summary>
         /// Resamples 16-bit stereo PCM to 48kHz using Sinc interpolation
         /// </summary>
@@ -17,10 +19,8 @@ namespace GoombaCast.Models.Audio.AudioProcessing
             byte[] dest,
             ref byte[] resampleBuffer)
         {
-            const int targetSampleRate = 48000; //48khz
-
             int sourceSamples = sourceBytes / 4;
-            double ratio = (double)sourceSampleRate / targetSampleRate;
+            double ratio = (double)sourceSampleRate / TargetSampleRate;
             int targetSamples = (int)(sourceSamples / ratio);
             int targetBytes = targetSamples * 4;
 
@@ -74,6 +74,38 @@ namespace GoombaCast.Models.Audio.AudioProcessing
             }
 
             return targetBytes;
+        }
+
+        /// <summary>
+        /// Fast resampling method - lower quality, no filtering, just drops samples to match target rate
+        /// </summary>
+        public static unsafe int ResampleTo48kHzFast(
+            byte[] source, 
+            int sourceBytes, 
+            int sourceSampleRate, 
+            byte[] dest)
+        {
+            int sourceSamples = sourceBytes / 4;
+            double ratio = (double)sourceSampleRate / TargetSampleRate;
+            int targetSamples = (int)(sourceSamples / ratio);
+
+            fixed (byte* srcPtr = source, dstPtr = dest)
+            {
+                short* srcShort = (short*)srcPtr;
+                short* dstShort = (short*)dstPtr;
+
+                for (int i = 0; i < targetSamples; i++)
+                {
+                    int srcIndex = (int)(i * ratio);
+                    if (srcIndex < sourceSamples)
+                    {
+                        dstShort[i * 2] = srcShort[srcIndex * 2];
+                        dstShort[i * 2 + 1] = srcShort[srcIndex * 2 + 1];
+                    }
+                }
+            }
+
+            return targetSamples * 4;
         }
 
         /// <summary>

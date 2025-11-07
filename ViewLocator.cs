@@ -1,13 +1,12 @@
-using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using GoombaCast.ViewModels;
+using System;
 
 namespace GoombaCast
 {
     public class ViewLocator : IDataTemplate
     {
-
         public Control? Build(object? param)
         {
             if (param is null)
