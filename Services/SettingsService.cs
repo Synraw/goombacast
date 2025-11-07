@@ -81,13 +81,19 @@ namespace GoombaCast.Services
 
         private SettingsService()
         {
-            _filePath = GetDefaultPath();
+            _filePath = GetLocalPath();
             _jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
             {
                 WriteIndented = true,
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
             LoadSync();
+        }
+
+        private static string GetLocalPath()
+        {
+            var dir = Directory.GetCurrentDirectory();
+            return Path.Combine(dir, "settings.json");
         }
 
         private static string GetDefaultPath()
