@@ -14,7 +14,7 @@ namespace GoombaCast.Services
     /// <summary>
     /// Core audio engine responsible for managing input sources, mixing, and output streaming
     /// </summary>
-    public sealed class AudioEngine : IDisposable, IAsyncDisposable
+    public sealed class AudioEngine : IAsyncDisposable
     {
         public enum AudioStreamType
         {
@@ -38,8 +38,10 @@ namespace GoombaCast.Services
         private AudioRecorderHandler? _recorder;
 
         // Disposal flag
-        private volatile bool _isDisposing = false;
-
+        private const int NotDisposed = 0;
+        private const int Disposed = 1;
+        private int _disposeState = 0; // 0 = not disposed, 1 = disposing/disposed
+        
         // Null stream to discard individual source output
         private readonly NullIcecastStream _nullStream = new();
 
@@ -272,7 +274,7 @@ namespace GoombaCast.Services
             }
 
             // Only sync if not disposing
-            if (!_isDisposing)
+            if (_disposeState == NotDisposed)
             {
                 SyncInputSourcesToSettings();
             }
@@ -387,28 +389,35 @@ namespace GoombaCast.Services
         // Disposal
         // ============================================================================
 
-        public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
-
         public async ValueTask DisposeAsync()
         {
-            _isDisposing = true;
-            
+            // Ensure disposal only happens once
+            if (Interlocked.Exchange(ref _disposeState, Disposed) != NotDisposed)
+                return;
+
+            // Stop mixer stream first
             _mixerStream?.Stop();
 
+            // Clear and dispose all input sources
             ClearInputSources();
 
+            // Dispose audio handlers
             if (_recorder != null)
             {
                 await Task.Run(() => _recorder.Dispose()).ConfigureAwait(false);
             }
 
+            // Dispose mixer components
             _mixerStream?.Dispose();
             _nullStream?.Dispose();
 
+            // Dispose Icecast stream if open
             if (_icecastStream.IsOpen)
             {
                 await _icecastStream.DisposeAsync().ConfigureAwait(false);
             }
+
+            GC.SuppressFinalize(this);
         }
 
         // ============================================================================

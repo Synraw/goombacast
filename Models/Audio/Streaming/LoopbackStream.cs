@@ -42,7 +42,7 @@ namespace GoombaCast.Models.Audio.Streaming
         private Random? _ditherRng;
 
         // Fixed output format to match mixer (48kHz, 16-bit, stereo)
-        private readonly WaveFormat _outputFormat = new(48000, 16, 2);
+        private readonly WaveFormat _outputFormat = new(AudioResampler.TargetSampleRate, 16, 2);
 
         private readonly object _loopbackLock = new();
         private readonly object _handlerLock = new();
@@ -51,7 +51,6 @@ namespace GoombaCast.Models.Audio.Streaming
         // Make buffers persistent and reuse them
         private byte[]? _conversionBuffer = new byte[19200]; // Pre-allocate for 100ms @ 48kHz
         private byte[]? _resampleBuffer = new byte[19200];
-        private float[]? _filterState; // Store previous samples for continuity
         private EventHandler<WaveInEventArgs>? _dataAvailableHandler;
         private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
 
@@ -194,12 +193,6 @@ namespace GoombaCast.Models.Audio.Streaming
             // Resample if needed
             if (sourceSampleRate != _outputFormat.SampleRate)
             {
-                AudioResampler.ApplyAntiAliasingFilter(
-                    _conversionBuffer,
-                    convertedLength,
-                    sourceSampleRate,
-                    ref _filterState!);
-
                 int outputLength = AudioResampler.ResampleTo48kHz(
                     _conversionBuffer,
                     convertedLength,
@@ -281,12 +274,6 @@ namespace GoombaCast.Models.Audio.Streaming
 
             _conversionBuffer = null;
             _resampleBuffer = null;
-
-            // Reset filter state to prevent artifacts on next start
-            if (_filterState != null)
-            {
-                Array.Clear(_filterState, 0, _filterState.Length);
-            }
         }
 
         public bool ChangeDevice(string? deviceId)
@@ -439,12 +426,6 @@ namespace GoombaCast.Models.Audio.Streaming
                         {
                             Logging.LogError($"Error in handler OnStop: {ex.Message}");
                         }
-                    }
-
-                    // Reset filter state and buffers
-                    if (_filterState != null)
-                    {
-                        Array.Clear(_filterState, 0, _filterState.Length);
                     }
 
                     _conversionBuffer = null;

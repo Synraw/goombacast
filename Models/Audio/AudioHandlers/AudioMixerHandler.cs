@@ -1,11 +1,11 @@
+using GoombaCast.Models.Audio.AudioProcessing;
+using GoombaCast.Models.Audio.Streaming;
+using GoombaCast.Services;
 using NAudio.Wave;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using GoombaCast.Models.Audio.Streaming;
-using GoombaCast.Services;
-using GoombaCast.Models.Audio.AudioProcessing;
 
 namespace GoombaCast.Models.Audio.AudioHandlers
 {
@@ -39,18 +39,15 @@ namespace GoombaCast.Models.Audio.AudioHandlers
         {
             public AudioInputSource Source { get; }
             private readonly Queue<byte> _buffer = new();
-            public long LastUpdateTime { get; set; }
 
             // Adaptive jitter buffer settings
-            private const int MinBufferBytes = 3840;  // ~20ms @ 48kHz stereo (minimum latency)
-            private const int TargetBufferBytes = 7680; // ~40ms @ 48kHz stereo (target)
-            private const int MaxBufferBytes = 19200;   // ~100ms @ 48kHz stereo (maximum)
-
+            private const int MinBufferBytes = 7680;    // ~40ms (was 3840)
+            private const int TargetBufferBytes = 15360; // ~80ms (was 7680)
+            private const int MaxBufferBytes = 38400;    // ~200ms (was 19200)
 
             public SourceBuffer(AudioInputSource source)
             {
                 Source = source;
-                LastUpdateTime = DateTime.UtcNow.Ticks;
             }
 
             /// <summary>
@@ -61,7 +58,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                 lock (_buffer)
                 {
                     _buffer.Clear();
-                    LastUpdateTime = DateTime.UtcNow.Ticks;
                 }
             }
 
@@ -93,8 +89,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                     {
                         _buffer.Enqueue(buffer[offset + i]);
                     }
-
-                    LastUpdateTime = DateTime.UtcNow.Ticks;
                 }
             }
 

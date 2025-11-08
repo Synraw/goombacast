@@ -50,7 +50,7 @@ namespace GoombaCast.Models.Audio.Streaming
             try
             {
                 Uri uri = new(settings.ServerAddress);
-                UriBuilder builder = new("http", uri.Host, 8000, "/status-json.xsl");
+                UriBuilder builder = new("http", uri.Host, uri.Port - 5 /*dj is usually baseport+5*/, "/status-json.xsl");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, builder.Uri);
                 var response = await GetClient().SendAsync(request).ConfigureAwait(false);

@@ -46,7 +46,7 @@ namespace GoombaCast.Models.Audio.Streaming
         private volatile bool _running = false;
 
         // Fixed output format to match mixer (48kHz, 16-bit, stereo)
-        private readonly WaveFormat _outputFormat = new(48000, 16, 2);
+        private readonly WaveFormat _outputFormat = new(AudioResampler.TargetSampleRate, 16, 2);
         private volatile bool _deviceSwitchInProgress;
 
         private readonly object _micLock = new();
@@ -396,14 +396,13 @@ namespace GoombaCast.Models.Audio.Streaming
             {
                 AudioResampler.ApplyAntiAliasingFilter(_conversionBuffer!, convertedLength, sourceSampleRate, ref _filterState!);
 
-                int outputLength = AudioResampler.ResampleTo48kHz(
+                int outputLength = AudioResampler.ResampleTo48kHzFast(
                     _conversionBuffer!,
                     convertedLength,
                     sourceSampleRate,
-                    _resampleBuffer!,
-                    ref _resampleBuffer!);
+                    _resampleBuffer!);
 
-                return (_resampleBuffer, outputLength);
+                return (_resampleBuffer!, outputLength);
             }
 
             return (_conversionBuffer!, convertedLength);

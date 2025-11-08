@@ -7,7 +7,7 @@ namespace GoombaCast.Models.Audio.AudioProcessing
     /// </summary>
     public static class AudioResampler
     {
-        const int TargetSampleRate = 48000; //48khz
+        public const int TargetSampleRate = 48000; //48khz
 
         /// <summary>
         /// Resamples 16-bit stereo PCM to 48kHz using Sinc interpolation

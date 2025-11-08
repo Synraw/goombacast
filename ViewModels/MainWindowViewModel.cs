@@ -21,7 +21,6 @@ namespace GoombaCast.ViewModels
     /// <summary>
     /// ViewModel for the main window of GoombaCast, handling audio streaming controls, metering, and UI state.
     /// </summary>
-    /// 
     public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         // Meter display and update constants
@@ -38,14 +37,15 @@ namespace GoombaCast.ViewModels
         private readonly AudioEngine _audioEngine;
         private readonly ILoggingService _loggingService;
         private readonly IServiceProvider _serviceProvider;
-        private readonly CancellationTokenSource _cts = new();
-        private bool _disposed;
 
         // Streaming state
         private DateTime _streamStartTime;
         private Timer? _streamTimer;        // Updates streaming duration display
         private Timer? _iceStatsRefresh;    // Updates Icecast listener count
         private Timer? _peakResetTimer;     // Controls peak meter falloff
+
+        // Dispose flag
+        private bool _disposed;
 
         // Observable audio metering properties
         [ObservableProperty] private float _leftPeakDb = -90;     // Left channel peak hold
@@ -196,7 +196,7 @@ namespace GoombaCast.ViewModels
             => UpdatePeakFalloff(PeakFallRate * (PeakUpdateInterval / 1000.0f));
 
         private void OnStreamTimerElapsed(object? sender, ElapsedEventArgs e)
-            => StreamingTime = $"{(DateTime.Now - _streamStartTime):hh\\:mm\\:ss}";
+            => StreamingTime = $"{DateTime.Now - _streamStartTime:hh\\:mm\\:ss}";
 
         private async void OnIceStatsRefreshElapsed(object? sender, ElapsedEventArgs e)
         {
@@ -270,6 +270,11 @@ namespace GoombaCast.ViewModels
             ScanDevices(OutputDevice.GetActiveOutputDevices());
         }
 
+        /// <summary>
+        /// Scans and logs devices of a given type
+        /// </summary>
+        /// <typeparam name="T">The type of the device.</typeparam>
+        /// <param name="devices">The collection of devices to scan.</param>
         private void ScanDevices<T>(IEnumerable<T> devices)
         {
             foreach (var device in devices)
@@ -345,13 +350,9 @@ namespace GoombaCast.ViewModels
             try
             {
                 if (!_audioEngine.IsBroadcasting)
-                {
                     await StartStreaming(settings.StreamName).ConfigureAwait(true);
-                }
                 else
-                {
                     await StopStreaming(settings.StreamName).ConfigureAwait(true);
-                }
             }
             catch (Exception ex)
             {
@@ -374,7 +375,9 @@ namespace GoombaCast.ViewModels
                 Logging.LogWarning("No input sources available to start streaming.");
                 return;
             }
+
             await _audioEngine.StartBroadcastAsync().ConfigureAwait(true);
+
             StartTimer();
             IsStreaming = true;
             IsListenerCountVisible = true;
@@ -453,15 +456,13 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Disposes of managed resources
         /// </summary>
-        protected virtual void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             if (!_disposed && disposing)
             {
-                _cts.Cancel();
                 _streamTimer?.Dispose();
                 _iceStatsRefresh?.Dispose();
                 _peakResetTimer?.Dispose();
-                _cts.Dispose();
 
                 _audioEngine.LevelsAvailable -= OnLevelsAvailable;
                 _audioEngine.ClippingDetected -= OnClippingDetected;
@@ -474,7 +475,7 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Implements IDisposable
         /// </summary>
-        public void Dispose()
+        public new void Dispose()
         {
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
