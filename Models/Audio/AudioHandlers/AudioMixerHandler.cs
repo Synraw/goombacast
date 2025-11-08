@@ -121,7 +121,6 @@ namespace GoombaCast.Models.Audio.AudioHandlers
                             availableData[i] = _buffer.Dequeue();
                         }
 
-                        // Stretch by linear interpolation
                         AudioResampler.StretchAudio(availableData, data, requestedBytes);
 
                         return true;
