@@ -36,6 +36,8 @@ namespace GoombaCast.ViewModels
         // Mixer Properties
         public ObservableCollection<AudioInputSource> InputSources { get; } = new();
 
+        public SettingsWindowViewModel() { }
+
         public SettingsWindowViewModel(AudioEngine audioEngine)
         {
             ArgumentNullException.ThrowIfNull(audioEngine);
