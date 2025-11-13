@@ -13,7 +13,7 @@ namespace GoombaCast.Services
         [JsonPropertyName("hideLog")]
         public bool HideLog { get; set; } = false;
         [JsonPropertyName("volumeLevel")]
-        public int VolumeLevel { get; set; } = 0;
+        public float VolumeLevel { get; set; } = 0;
         [JsonPropertyName("serverAddress")]
         public string ServerAddress { get; set; } = "http://localhost:8005/";
         [JsonPropertyName("streamName")]

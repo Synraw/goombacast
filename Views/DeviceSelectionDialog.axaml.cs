@@ -18,8 +18,13 @@ namespace GoombaCast.Views
 
         private readonly AudioEngine? _audioEngine;
 
-        public DeviceSelectionDialog() { }
+        // Design-time constructor
+        public DeviceSelectionDialog() 
+        {
+            InitializeComponent();
+        }
 
+        // Runtime constructor
         public DeviceSelectionDialog(AudioEngine audioEngine)
         {
             ArgumentNullException.ThrowIfNull(audioEngine);
@@ -30,21 +35,26 @@ namespace GoombaCast.Views
         protected override void OnOpened(EventArgs e)
         {
             base.OnOpened(e);
-            
+            InitializeControls();
+            LoadDevices();
+        }
+
+        private void InitializeControls()
+        {
+            // Safe to find controls now - name scope is ready
             _microphoneRadio = this.FindControl<RadioButton>("MicrophoneRadio");
             _loopbackRadio = this.FindControl<RadioButton>("LoopbackRadio");
             _deviceComboBox = this.FindControl<ComboBox>("DeviceComboBox");
             _deviceInfoPanel = this.FindControl<Border>("DeviceInfoPanel");
             _deviceInfoText = this.FindControl<TextBlock>("DeviceInfoText");
 
+            // Wire up events in code instead of XAML
             if (_microphoneRadio != null)
                 _microphoneRadio.IsCheckedChanged += OnDeviceTypeChanged;
             if (_loopbackRadio != null)
                 _loopbackRadio.IsCheckedChanged += OnDeviceTypeChanged;
             if (_deviceComboBox != null)
                 _deviceComboBox.SelectionChanged += OnDeviceSelectionChanged;
-
-            LoadDevices();
         }
 
         private void OnDeviceTypeChanged(object? sender, RoutedEventArgs e)
@@ -59,7 +69,8 @@ namespace GoombaCast.Views
 
         private void LoadDevices()
         {
-            if (_deviceComboBox == null || _microphoneRadio == null) return;
+            if (_deviceComboBox == null || _microphoneRadio == null || _audioEngine == null) 
+                return;
 
             try
             {
@@ -133,6 +144,12 @@ namespace GoombaCast.Views
             if (_deviceComboBox?.SelectedItem == null)
             {
                 ShowNoDevicesWarning("Please select a device first.");
+                return;
+            }
+
+            if (_audioEngine == null)
+            {
+                ShowNoDevicesWarning("Audio engine not initialized.");
                 return;
             }
 

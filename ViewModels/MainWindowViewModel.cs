@@ -53,7 +53,7 @@ namespace GoombaCast.ViewModels
         [ObservableProperty] private float _leftDb;               // Left channel current level
         [ObservableProperty] private float _rightDb;              // Right channel current level
         [ObservableProperty] private bool _isClipping;            // Audio clipping indicator
-        [ObservableProperty] private int _volumeLevel;            // Input gain control
+        [ObservableProperty] private float _volumeLevel;          // Input gain control
         [ObservableProperty] private bool _isLogVisible = true;   // Hide and show log window
 
         // Observable UI state properties
@@ -117,6 +117,7 @@ namespace GoombaCast.ViewModels
         {
             var settings = SettingsService.Default.Settings;
             VolumeLevel = settings.VolumeLevel;
+            _audioEngine.SetMasterGainLevel(VolumeLevel);
             WindowTitle = $"GoombaCast: {settings.StreamName}";
             IsLogVisible = !settings.HideLog;
         }
@@ -129,7 +130,6 @@ namespace GoombaCast.ViewModels
             _audioEngine.LevelsAvailable += OnLevelsAvailable;
             _audioEngine.ClippingDetected += OnClippingDetected;
             _loggingService.LogLineAdded += OnLogLineAdded;
-            VolumeLevel = (int)_audioEngine.GetMasterGainLevel();
         }
 
         /// <summary>
@@ -321,13 +321,12 @@ namespace GoombaCast.ViewModels
         }
 
         // Generated property change handlers
-        partial void OnVolumeLevelChanged(int value)
+        partial void OnVolumeLevelChanged(float value)
         {
             var settings = SettingsService.Default.Settings;
             if (settings.VolumeLevel != value)
             {
                 settings.VolumeLevel = value;
-                SettingsService.Default.Save();
             }
             _audioEngine?.SetMasterGainLevel(value);
         }
