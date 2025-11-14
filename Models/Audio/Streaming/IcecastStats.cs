@@ -41,7 +41,8 @@ namespace GoombaCast.Models.Audio.Streaming
         public static async Task<IcecastStats?> GetStatsAsync()
         {
             var settings = SettingsService.Default.Settings;
-            if (string.IsNullOrEmpty(settings.ServerAddress))
+            var current_profile = settings.CurrentServer;
+            if (string.IsNullOrEmpty(current_profile?.ServerAddress))
             {
                 Logging.LogError("Server address is not configured");
                 return null;
@@ -49,7 +50,7 @@ namespace GoombaCast.Models.Audio.Streaming
 
             try
             {
-                Uri uri = new(settings.ServerAddress);
+                Uri uri = new(current_profile?.ServerAddress!);
                 UriBuilder builder = new("http", uri.Host, uri.Port - 5 /*dj is usually baseport+5*/, "/status-json.xsl");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, builder.Uri);

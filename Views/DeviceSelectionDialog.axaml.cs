@@ -10,12 +10,6 @@ namespace GoombaCast.Views
 {
     public partial class DeviceSelectionDialog : Window
     {
-        private RadioButton? _microphoneRadio;
-        private RadioButton? _loopbackRadio;
-        private ComboBox? _deviceComboBox;
-        private Border? _deviceInfoPanel;
-        private TextBlock? _deviceInfoText;
-
         private readonly AudioEngine? _audioEngine;
 
         // Design-time constructor
@@ -41,20 +35,9 @@ namespace GoombaCast.Views
 
         private void InitializeControls()
         {
-            // Safe to find controls now - name scope is ready
-            _microphoneRadio = this.FindControl<RadioButton>("MicrophoneRadio");
-            _loopbackRadio = this.FindControl<RadioButton>("LoopbackRadio");
-            _deviceComboBox = this.FindControl<ComboBox>("DeviceComboBox");
-            _deviceInfoPanel = this.FindControl<Border>("DeviceInfoPanel");
-            _deviceInfoText = this.FindControl<TextBlock>("DeviceInfoText");
-
-            // Wire up events in code instead of XAML
-            if (_microphoneRadio != null)
-                _microphoneRadio.IsCheckedChanged += OnDeviceTypeChanged;
-            if (_loopbackRadio != null)
-                _loopbackRadio.IsCheckedChanged += OnDeviceTypeChanged;
-            if (_deviceComboBox != null)
-                _deviceComboBox.SelectionChanged += OnDeviceSelectionChanged;
+            MicrophoneRadio.IsCheckedChanged += OnDeviceTypeChanged;
+            LoopbackRadio.IsCheckedChanged += OnDeviceTypeChanged;
+            DeviceComboBox.SelectionChanged += OnDeviceSelectionChanged;
         }
 
         private void OnDeviceTypeChanged(object? sender, RoutedEventArgs e)
@@ -69,15 +52,15 @@ namespace GoombaCast.Views
 
         private void LoadDevices()
         {
-            if (_deviceComboBox == null || _microphoneRadio == null || _audioEngine == null) 
+            if (_audioEngine == null) 
                 return;
 
             try
             {
-                if (_microphoneRadio.IsChecked == true)
+                if (MicrophoneRadio.IsChecked == true)
                 {
                     var devices = InputDevice.GetActiveInputDevices();
-                    _deviceComboBox.ItemsSource = devices;
+                    DeviceComboBox.ItemsSource = devices;
                     
                     if (devices.Count == 0)
                     {
@@ -87,7 +70,7 @@ namespace GoombaCast.Views
                 else
                 {
                     var devices = OutputDevice.GetActiveOutputDevices();
-                    _deviceComboBox.ItemsSource = devices;
+                    DeviceComboBox.ItemsSource = devices;
                     
                     if (devices.Count == 0)
                     {
@@ -95,9 +78,9 @@ namespace GoombaCast.Views
                     }
                 }
 
-                if (_deviceComboBox.ItemCount > 0)
+                if (DeviceComboBox.ItemCount > 0)
                 {
-                    _deviceComboBox.SelectedIndex = 0;
+                    DeviceComboBox.SelectedIndex = 0;
                 }
             }
             catch (Exception ex)
@@ -109,29 +92,27 @@ namespace GoombaCast.Views
 
         private void ShowNoDevicesWarning(string message)
         {
-            if (_deviceInfoPanel != null && _deviceInfoText != null)
-            {
-                _deviceInfoPanel.IsVisible = true;
-                _deviceInfoPanel.Background = Avalonia.Media.Brushes.DarkRed;
-                _deviceInfoText.Text = message;
-            }
+                DeviceInfoPanel.IsVisible = true;
+                DeviceInfoPanel.Background = Avalonia.Media.Brushes.DarkRed;
+                DeviceInfoText.Text = message;
+            
         }
 
         private void UpdateDeviceInfo()
         {
-            if (_deviceComboBox?.SelectedItem == null || _deviceInfoPanel == null || _deviceInfoText == null)
+            if (DeviceComboBox.SelectedItem == null)
                 return;
 
             try
             {
-                _deviceInfoPanel.IsVisible = true;
-                _deviceInfoPanel.Background = new Avalonia.Media.SolidColorBrush(
+                DeviceInfoPanel.IsVisible = true;
+                DeviceInfoPanel.Background = new Avalonia.Media.SolidColorBrush(
                     Avalonia.Media.Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF));
 
-                var deviceName = _deviceComboBox.SelectedItem.ToString();
-                var deviceType = _microphoneRadio?.IsChecked == true ? "Microphone" : "System Audio";
+                var deviceName = DeviceComboBox.SelectedItem.ToString();
+                var deviceType = MicrophoneRadio?.IsChecked == true ? "Microphone" : "System Audio";
                 
-                _deviceInfoText.Text = $"Device: {deviceName}\nType: {deviceType}";
+                DeviceInfoText.Text = $"Device: {deviceName}\nType: {deviceType}";
             }
             catch (Exception ex)
             {
@@ -141,7 +122,7 @@ namespace GoombaCast.Views
 
         private void OnAddClick(object? sender, RoutedEventArgs e)
         {
-            if (_deviceComboBox?.SelectedItem == null)
+            if (DeviceComboBox.SelectedItem == null)
             {
                 ShowNoDevicesWarning("Please select a device first.");
                 return;
@@ -155,13 +136,13 @@ namespace GoombaCast.Views
 
             try
             {
-                var streamType = _microphoneRadio?.IsChecked == true
+                var streamType = MicrophoneRadio.IsChecked == true
                     ? AudioEngine.AudioStreamType.Microphone
                     : AudioEngine.AudioStreamType.Loopback;
 
-                string deviceId = _microphoneRadio?.IsChecked == true
-                    ? ((InputDevice)_deviceComboBox.SelectedItem).Id
-                    : ((OutputDevice)_deviceComboBox.SelectedItem).Id;
+                string deviceId = MicrophoneRadio?.IsChecked == true
+                    ? ((InputDevice)DeviceComboBox.SelectedItem).Id
+                    : ((OutputDevice)DeviceComboBox.SelectedItem).Id;
 
                 // Check if device is already added
                 var existingSource = _audioEngine!.InputSources.FirstOrDefault(s => s.DeviceId == deviceId);

@@ -11,7 +11,6 @@ using GoombaCast.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 using Timer = System.Timers.Timer;
@@ -43,6 +42,7 @@ namespace GoombaCast.ViewModels
         private Timer? _streamTimer;        // Updates streaming duration display
         private Timer? _iceStatsRefresh;    // Updates Icecast listener count
         private Timer? _peakResetTimer;     // Controls peak meter falloff
+        private string currentStreamName = string.Empty;
 
         // Dispose flag
         private bool _disposed;
@@ -118,7 +118,11 @@ namespace GoombaCast.ViewModels
             var settings = SettingsService.Default.Settings;
             VolumeLevel = settings.VolumeLevel;
             _audioEngine.SetMasterGainLevel(VolumeLevel);
-            WindowTitle = $"GoombaCast: {settings.StreamName}";
+            
+            // Set initial window title with current profile
+            var profileName = settings.CurrentServer?.ProfileName;
+            UpdateWindowTitle(profileName);
+            
             IsLogVisible = !settings.HideLog;
         }
 
@@ -231,10 +235,10 @@ namespace GoombaCast.ViewModels
         }
 
         /// <summary>
-        /// Updates the window title with the stream name
+        /// Updates the window title with the extended title
         /// </summary>
-        public void UpdateWindowTitle(string? streamName)
-            => WindowTitle = string.IsNullOrEmpty(streamName) ? "GoombaCast" : $"GoombaCast: {streamName}";
+        public void UpdateWindowTitle(string? extendedTitle)
+            => WindowTitle = string.IsNullOrEmpty(extendedTitle) ? "GoombaCast" : $"GoombaCast: {extendedTitle}";
 
         /// <summary>
         /// Starts the streaming timer
@@ -303,21 +307,7 @@ namespace GoombaCast.ViewModels
             };
 
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                // Subscribe to stream name changes
-                void OnStreamNameChanged(object? s, string name) => UpdateWindowTitle(name);
-                viewModel.StreamNameChanged += OnStreamNameChanged;
-
-                try
-                {
-                    await dialog.ShowDialog(desktop.MainWindow!).ConfigureAwait(false);
-                }
-                finally
-                {
-                    // Clean up event subscription
-                    viewModel.StreamNameChanged -= OnStreamNameChanged;
-                }
-            }
+                await dialog.ShowDialog(desktop.MainWindow!).ConfigureAwait(false);
         }
 
         // Generated property change handlers
@@ -349,9 +339,9 @@ namespace GoombaCast.ViewModels
             try
             {
                 if (!_audioEngine.IsBroadcasting)
-                    await StartStreaming(settings.StreamName).ConfigureAwait(true);
+                    await StartStreaming().ConfigureAwait(true);
                 else
-                    await StopStreaming(settings.StreamName).ConfigureAwait(true);
+                    await StopStreaming().ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -367,11 +357,18 @@ namespace GoombaCast.ViewModels
         /// <summary>
         /// Starts the audio stream
         /// </summary>
-        private async Task StartStreaming(string streamName)
+        private async Task StartStreaming()
         {
+            var settings = SettingsService.Default.Settings;
             if (_audioEngine.InputSources.Count == 0)
             {
                 Logging.LogWarning("No input sources available to start streaming.");
+                return;
+            }
+
+            if (settings.CurrentServer == null)
+            {
+                Logging.LogWarning("No server profile selected. Please select/create a server profile in settings.");
                 return;
             }
 
@@ -380,19 +377,20 @@ namespace GoombaCast.ViewModels
             StartTimer();
             IsStreaming = true;
             IsListenerCountVisible = true;
-            Logging.Log($"Now streaming to {streamName}");
+            currentStreamName = settings.CurrentServer?.ProfileName ?? string.Empty;
+            Logging.Log($"Now streaming to {currentStreamName}");
         }
 
         /// <summary>
         /// Stops the audio stream
         /// </summary>
-        private async Task StopStreaming(string streamName)
+        private async Task StopStreaming()
         {
             await _audioEngine.StopBroadcast();
             StopTimer();
             IsStreaming = false;
             IsListenerCountVisible = false;
-            Logging.Log($"{streamName} stream stopped.");
+            Logging.Log($"{currentStreamName} stream stopped.");
         }
 
         /// <summary>
@@ -407,7 +405,6 @@ namespace GoombaCast.ViewModels
                 return;
             }
 
-            var settings = SettingsService.Default.Settings;
             IsRecordButtonEnabled = false;
 
             try

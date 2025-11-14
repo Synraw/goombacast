@@ -18,17 +18,12 @@ namespace GoombaCast.ViewModels
         private readonly SettingsService _settingsService = SettingsService.Default;
         private readonly AudioEngine _audioEngine;
 
-        public event EventHandler<string>? StreamNameChanged;
-
         // Limiter Properties
         [ObservableProperty] private bool _limiterEnabled;
         [ObservableProperty] private float _limiterThreshold;
 
         // Server Properties
-        [ObservableProperty] private string _serverAddress = string.Empty;
-        [ObservableProperty] private string _username = string.Empty;
-        [ObservableProperty] private string _password = string.Empty;
-        [ObservableProperty] private string _streamName = string.Empty;
+        [ObservableProperty] private string _currentProfileName = "No Profile Selected";
 
         // Recording Properties
         [ObservableProperty] private string _recordingDirectory = string.Empty;
@@ -36,7 +31,16 @@ namespace GoombaCast.ViewModels
         // Mixer Properties
         public ObservableCollection<AudioInputSource> InputSources { get; } = new();
 
-        public SettingsWindowViewModel() { }
+        public SettingsWindowViewModel() 
+        {
+            // Design-time constructor
+            _audioEngine = null!;
+            
+            var inputDevice = InputDevice.GetDefaultInputDevice();
+            var outputDevice = OutputDevice.GetDefaultOutputDevice();
+            InputSources.Add(new AudioInputSource(inputDevice.ToString(), inputDevice.Id, AudioEngine.AudioStreamType.Microphone));
+            InputSources.Add(new AudioInputSource(outputDevice.ToString(), outputDevice.Id, AudioEngine.AudioStreamType.Loopback));
+        }
 
         public SettingsWindowViewModel(AudioEngine audioEngine)
         {
@@ -56,11 +60,12 @@ namespace GoombaCast.ViewModels
             LimiterEnabled = settings.LimiterEnabled;
             LimiterThreshold = settings.LimiterThreshold;
 
-            // Server settings
-            ServerAddress = settings.ServerAddress ?? string.Empty;
-            Username = settings.UserName ?? string.Empty;
-            Password = settings.Password ?? string.Empty;
-            StreamName = settings.StreamName ?? string.Empty;
+            if (settings.CurrentServer != null)
+            {
+                CurrentProfileName = settings.CurrentServer.ProfileName;
+            } else {
+                CurrentProfileName = "No Profile Selected";
+            }
 
             // Recording settings
             RecordingDirectory = settings.RecordingDirectory ?? string.Empty;
@@ -131,33 +136,33 @@ namespace GoombaCast.ViewModels
             _audioEngine.SetLimiterThreshold(value);
         }
 
-        partial void OnServerAddressChanged(string value)
+        [RelayCommand]
+        private async Task ManageServerProfiles()
         {
-            var settings = _settingsService.Settings;
-            settings.ServerAddress = value;
-            _settingsService.Save();
+            var dialog = new ServerProfileDialog(_settingsService);
+            await dialog.ShowDialog(GetParentWindow()!);
+
+            LoadSettings();
+            
+            // Update the main window title with the new profile
+            UpdateMainWindowTitle();
         }
 
-        partial void OnUsernameChanged(string value)
+        private void UpdateMainWindowTitle()
         {
             var settings = _settingsService.Settings;
-            settings.UserName = value;
-            _settingsService.Save();
-        }
-
-        partial void OnPasswordChanged(string value)
-        {
-            var settings = _settingsService.Settings;
-            settings.Password = value;
-            _settingsService.Save();
-        }
-
-        partial void OnStreamNameChanged(string value)
-        {
-            var settings = _settingsService.Settings;
-            settings.StreamName = value;
-            StreamNameChanged?.Invoke(this, value);
-            _settingsService.Save();
+            var profileName = settings.CurrentServer?.ProfileName;
+            
+            // Find the main window and update its title
+            if (Avalonia.Application.Current?.ApplicationLifetime is
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var mainWindow = desktop.MainWindow;
+                if (mainWindow?.DataContext is MainWindowViewModel mainViewModel)
+                {
+                    mainViewModel.UpdateWindowTitle(profileName);
+                }
+            }
         }
 
         [RelayCommand]

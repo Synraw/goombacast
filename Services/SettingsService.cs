@@ -12,42 +12,41 @@ namespace GoombaCast.Services
     {
         [JsonPropertyName("hideLog")]
         public bool HideLog { get; set; } = false;
+       
         [JsonPropertyName("volumeLevel")]
         public float VolumeLevel { get; set; } = 0;
-        [JsonPropertyName("serverAddress")]
-        public string ServerAddress { get; set; } = "http://localhost:8005/";
-        [JsonPropertyName("streamName")]
-        public string StreamName { get; set; } = "My Stream";
-        [JsonPropertyName("userName")]
-        public string UserName { get; set; } = "source";
-        [JsonPropertyName("password")]
-        public string Password { get; set; } = "hackme";
+        
+        [JsonPropertyName("currentServer")]
+        public ServerProfileConfig? CurrentServer { get; set; }
+
         [JsonPropertyName("limiterEnabled")]
         public bool LimiterEnabled { get; set; } = true;
+       
         [JsonPropertyName("limiterThreshold")]
         public float LimiterThreshold { get; set; } = -3.0f;
+       
         [JsonPropertyName("audioBufferMs")]
         public int AudioBufferMs { get; set; } = 20; // Default 20ms (low latency)
+       
         [JsonPropertyName("conversionBufferMs")]
         public int ConversionBufferMs { get; set; } = 100; // Default 100ms
+       
         [JsonPropertyName("recordingDirectory")]
         public string RecordingDirectory { get; set; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
             "GoombaCast Recordings"
         );
+        
+        [JsonPropertyName("serverProfiles")]
+        public List<ServerProfileConfig> ServerProfiles { get; set; } = new();
+       
         [JsonPropertyName("inputSources")]
         public List<InputSourceConfig> InputSources { get; set; } = new();
-        
+
         public bool IsValid()
         {
-            return !string.IsNullOrWhiteSpace(ServerAddress) &&
-                   !string.IsNullOrWhiteSpace(UserName) &&
-                   !string.IsNullOrWhiteSpace(Password);
+            return CurrentServer != null;
         }
-
-        public bool IsServerAddressValid()
-            => Uri.TryCreate(ServerAddress, UriKind.Absolute, out var uri) &&
-               (uri.Scheme == "http" || uri.Scheme == "https");
 
         public class InputSourceConfig
         {
@@ -62,6 +61,37 @@ namespace GoombaCast.Services
             [JsonPropertyName("isSolo")]
             public bool IsSolo { get; set; }
         }
+
+        public class ServerProfileConfig
+        {
+            [JsonPropertyName("profileName")]
+            public string ProfileName { get; set; } = string.Empty;
+            [JsonPropertyName("serverAddress")]
+            public string ServerAddress { get; set; } = string.Empty;
+            [JsonPropertyName("userName")]
+            public string UserName { get; set; } = string.Empty;
+            [JsonPropertyName("password")]
+            public string Password { get; set; } = string.Empty;
+
+            public override string ToString()
+            {
+                return ProfileName;
+            }
+
+            public Uri? ServerURI()
+            {
+                if(Uri.TryCreate(ServerAddress, UriKind.Absolute, out Uri? uri))
+                    return uri;
+                return null;
+            }
+        }
+
+        public bool IsServerAddressValid(ServerProfileConfig serverProfile)
+           => Uri.TryCreate(serverProfile.ServerAddress, UriKind.Absolute, out var uri) &&
+              (uri.Scheme == "http" || uri.Scheme == "https");
+
+        public bool IsServerAddressValid()
+           => CurrentServer != null && IsServerAddressValid(CurrentServer);
     }
 
     public sealed class SettingsService : IDisposable
@@ -96,14 +126,6 @@ namespace GoombaCast.Services
             return Path.Combine(dir, "settings.json");
         }
 
-        private static string GetDefaultPath()
-        {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var dir = Path.Combine(appDataPath, "GoombaCast");
-            Directory.CreateDirectory(dir);
-            return Path.Combine(dir, "settings.json");
-        }
-
         private void LoadSync()
         {
             try
@@ -119,7 +141,6 @@ namespace GoombaCast.Services
                 if (loaded is not null)
                 {
                     Settings = loaded;
-                    ValidateSettings();
                 }
             }
             catch (Exception ex)
@@ -146,7 +167,6 @@ namespace GoombaCast.Services
                 if (loaded is not null)
                 {
                     Settings = loaded;
-                    ValidateSettings();
                     SettingsChanged?.Invoke(this, Settings);
                 }
             }
@@ -167,7 +187,6 @@ namespace GoombaCast.Services
             await _lock.WaitAsync().ConfigureAwait(false);
             try
             {
-                ValidateSettings();
                 var json = JsonSerializer.Serialize(Settings, _jsonOptions);
                 var tempPath = Path.GetTempFileName();
                 await File.WriteAllTextAsync(tempPath, json).ConfigureAwait(false);
@@ -190,7 +209,6 @@ namespace GoombaCast.Services
             ThrowIfDisposed();
             try
             {
-                ValidateSettings();
                 var json = JsonSerializer.Serialize(Settings, _jsonOptions);
                 var tempPath = Path.GetTempFileName();
                 File.WriteAllText(tempPath, json);
@@ -201,19 +219,6 @@ namespace GoombaCast.Services
             {
                 Logging.LogError($"Failed to save settings: {ex.Message}");
                 throw;
-            }
-        }
-
-        private void ValidateSettings()
-        {
-            if (!Settings.IsValid())
-            {
-                Logging.LogWarning("Settings validation failed");
-            }
-
-            if (!Settings.IsServerAddressValid())
-            {
-                Logging.LogWarning($"Invalid server address: {Settings.ServerAddress}");
             }
         }
 

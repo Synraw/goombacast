@@ -1,0 +1,148 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GoombaCast.ViewModels"
+        xmlns:services="using:GoombaCast.Services"
+        x:Class="GoombaCast.Views.ServerProfileDialog"
+        Title="Manage Server Profiles"
+        MinWidth="600" MinHeight="450"
+        MaxWidth="800" MaxHeight="700"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        Icon="/Assets/goomba-logo.ico"
+        TransparencyLevelHint="AcrylicBlur"
+        Background="Transparent"
+        ExtendClientAreaToDecorationsHint="True">
+
+    <Panel>
+        <ExperimentalAcrylicBorder IsHitTestVisible="False">
+            <ExperimentalAcrylicBorder.Material>
+                <ExperimentalAcrylicMaterial
+                    BackgroundSource="Digger"
+                    TintColor="Black"
+                    TintOpacity="1"
+                    MaterialOpacity="0.65" />
+            </ExperimentalAcrylicBorder.Material>
+        </ExperimentalAcrylicBorder>
+
+        <DockPanel Margin="20" MaxWidth="750">
+            <!-- Header -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" Margin="0,0,0,20">
+                <Image Source="/Assets/goomba-logo.ico" Width="32" Height="32"
+                       IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="Server Profiles" FontSize="20" FontWeight="Light"
+                          Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Action Buttons -->
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" 
+                       HorizontalAlignment="Right" Spacing="10" Margin="0,20,0,0">
+                <Button Content="Close"  
+                       Click="OnCloseClick"
+                       FontSize="14"/>
+            </StackPanel>
+
+            <!-- Content -->
+            <Grid ColumnDefinitions="200,*" RowDefinitions="*" ColumnSpacing="15">
+                
+                <!-- Left Panel: Profile List -->
+                <Border Grid.Column="0" Background="#20FFFFFF" CornerRadius="8" Padding="10">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="PROFILES" 
+                                  Foreground="#99FFFFFF" 
+                                  FontSize="12" 
+                                  FontWeight="SemiBold"
+                                  Margin="5,0,0,10"/>
+                        
+                        <!-- Add Profile Button -->
+                        <Button DockPanel.Dock="Bottom" 
+                               Content="+ New Profile" 
+                               Click="OnNewProfileClick"
+                               HorizontalAlignment="Stretch"
+                               Margin="0,10,0,0"/>
+                        
+                        <!-- Profile List -->
+                        <ListBox x:Name="ProfileListBox"
+                                Background="Transparent"
+                                SelectionChanged="OnProfileSelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="services:AppSettings+ServerProfileConfig">
+                                    <TextBlock Text="{Binding ProfileName}" 
+                                              Padding="5"
+                                              Foreground="White"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+
+                <!-- Right Panel: Profile Editor -->
+                <Border Grid.Column="1" Background="#20FFFFFF" CornerRadius="8" Padding="15">
+                    <StackPanel Spacing="15" x:Name="EditorPanel" IsEnabled="False">
+                        <TextBlock Text="PROFILE DETAILS" 
+                                  Foreground="#99FFFFFF" 
+                                  FontSize="12" 
+                                  FontWeight="SemiBold"/>
+
+                        <!-- Profile Name -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Profile Name" Foreground="White" FontSize="14"/>
+                            <TextBox x:Name="ProfileNameTextBox"
+                                    Watermark="e.g., My Radio Station"
+                                    FontSize="14"/>
+                        </StackPanel>
+
+                        <!-- Server Address -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Server Address" Foreground="White" FontSize="14"/>
+                            <TextBox x:Name="ServerAddressTextBox"
+                                    Watermark="e.g., https://example.com:8005/station.mp3"
+                                    FontSize="14"/>
+                            <TextBlock x:Name="ServerAddressValidation"
+                                      Foreground="#FFFF6B6B"
+                                      FontSize="11"
+                                      IsVisible="False"
+                                      Text="⚠ Invalid server address"/>
+                        </StackPanel>
+
+                        <!-- Username -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Username" Foreground="White" FontSize="14"/>
+                            <TextBox x:Name="UserNameTextBox"
+                                    Watermark="Optional"
+                                    FontSize="14"/>
+                        </StackPanel>
+
+                        <!-- Password -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Password" Foreground="White" FontSize="14"/>
+                            <TextBox x:Name="PasswordTextBox"
+                                    PasswordChar="●"
+                                    Watermark="Optional"
+                                    FontSize="14"/>
+                        </StackPanel>
+
+                        <!-- Action Buttons -->
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10" Margin="0,10,0,0">
+                            <Button Grid.Column="0" 
+                                   Content="Save"
+                                   Click="OnSaveProfileClick"
+                                   Classes="accent"
+                                   HorizontalAlignment="Stretch"/>
+                            <Button Grid.Column="1" 
+                                   Content="Set Active"
+                                   Click="OnSetActiveClick"
+                                   x:Name="SetActiveButton"
+                                   HorizontalAlignment="Stretch"/>
+                            <Button Grid.Column="2" 
+                                   Content="Delete"
+                                   Click="OnDeleteProfileClick"
+                                   x:Name="DeleteButton"
+                                   HorizontalAlignment="Stretch"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </DockPanel>
+    </Panel>
+</Window>

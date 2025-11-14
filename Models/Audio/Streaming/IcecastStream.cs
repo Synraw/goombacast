@@ -47,16 +47,17 @@ namespace GoombaCast.Models.Audio.Streaming
 
         public static IcecastStreamConfig FromSettings(SettingsService settings)
         {
-            var uri = new Uri(settings.Settings.ServerAddress ?? "http://localhost:8005/station-name/source.mp3");
+            var current_profile = settings.Settings.CurrentServer;
+            var uri = new Uri(current_profile?.ServerAddress ?? "http://localhost:8005/station-name/source.mp3");
             return new IcecastStreamConfig
             {
                 Host = uri.Host,
                 Port = uri.Port,
                 Mount = uri.AbsolutePath,
                 UseTls = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase),
-                User = settings.Settings.UserName ?? "user",
-                Pass = settings.Settings.Password ?? "pass",
-                StreamName = settings.Settings.StreamName ?? "GoombaCast Stream",
+                User = current_profile?.UserName ?? "user",
+                Pass = current_profile?.Password ?? "pass",
+                StreamName = current_profile?.ProfileName,
             };
         }
 
@@ -70,6 +71,7 @@ namespace GoombaCast.Models.Audio.Streaming
         private TcpClient? _tcp;
         private Stream? _net;
         private bool _open;
+        private TimeSpan _connectTimeout = TimeSpan.FromSeconds(10);
 
         public IcecastStream() { }
 
@@ -103,38 +105,55 @@ namespace GoombaCast.Models.Audio.Streaming
             if (_icecastConfig == null)
                 throw new InvalidOperationException("IcecastStreamConfig must be configured before opening the stream.");
 
-            _tcp = new TcpClient();
-            await _tcp.ConnectAsync(_icecastConfig.Host, _icecastConfig.Port, ct).ConfigureAwait(false);
-            _net = _tcp.GetStream();
+            using var timeoutCts = new CancellationTokenSource(_connectTimeout);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+            var token = linkedCts.Token;
 
-            if (_icecastConfig.UseTls)
+            try
             {
-                var ssl = new SslStream(_net, leaveInnerStreamOpen: false);
-                await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+                _tcp = new TcpClient();
+                await _tcp.ConnectAsync(_icecastConfig.Host, _icecastConfig.Port, token).ConfigureAwait(false);
+                _net = _tcp.GetStream();
+
+                if (_icecastConfig.UseTls)
                 {
-                    TargetHost = _icecastConfig.Host,
-                    EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
-                }, ct).ConfigureAwait(false);
-                _net = ssl;
+                    var ssl = new SslStream(_net, leaveInnerStreamOpen: false);
+                    await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+                    {
+                        TargetHost = _icecastConfig.Host,
+                        EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
+                    }, token).ConfigureAwait(false);
+                    _net = ssl;
+                }
+
+                // Send headers
+                var headerBytes = Encoding.ASCII.GetBytes(_icecastConfig.GetIcecastHeaders());
+                await _net.WriteAsync(headerBytes, 0, headerBytes.Length, token).ConfigureAwait(false);
+                await _net.FlushAsync(token).ConfigureAwait(false);
+
+                // Read the HTTP response line (should be 100/200 range; Icecast often responds 200 OK)
+                using (var reader = new StreamReader(_net, Encoding.ASCII, false, 1024, leaveOpen: true))
+                {
+                    var status = await reader.ReadLineAsync(token).ConfigureAwait(false);
+                    if (status == null || !status.Contains("200") && !status.Contains("100") && !status.Contains("OK"))
+                        throw new InvalidOperationException($"Icecast PUT failed: '{status ?? "<no status>"}'");
+
+                    // Consume remaining response headers until blank line
+                    while (!string.IsNullOrEmpty(_ = await reader.ReadLineAsync(token).ConfigureAwait(false))) { /* skip */ }
+                }
+
+                _open = true;
             }
-
-            // Send headers
-            var headerBytes = Encoding.ASCII.GetBytes(_icecastConfig.GetIcecastHeaders());
-            await _net.WriteAsync(headerBytes, 0, headerBytes.Length, ct).ConfigureAwait(false);
-            await _net.FlushAsync(ct).ConfigureAwait(false);
-
-            // Read the HTTP response line (should be 100/200 range; Icecast often responds 200 OK)
-            using (var reader = new StreamReader(_net, Encoding.ASCII, false, 1024, leaveOpen: true))
+            catch (OperationCanceledException) when (timeoutCts.Token.IsCancellationRequested)
             {
-                var status = await reader.ReadLineAsync().ConfigureAwait(false);
-                if (status == null || !status.Contains("200") && !status.Contains("100") && !status.Contains("OK"))
-                    throw new InvalidOperationException($"Icecast PUT failed: '{status ?? "<no status>"}'");
+                // Cleanup on timeout
+                try { _net?.Dispose(); } catch { }
+                try { _tcp?.Close(); } catch { }
+                _net = null;
+                _tcp = null;
 
-                // Consume remaining response headers until blank line
-                while (!string.IsNullOrEmpty(_ = await reader.ReadLineAsync(ct).ConfigureAwait(false))) { /* skip */ }
+                throw new TimeoutException($"Connection to {_icecastConfig.Host}:{_icecastConfig.Port} timed out after {_connectTimeout.Seconds} seconds.");
             }
-
-            _open = true;
         }
 
         public override void Write(byte[] buffer, int offset, int count)

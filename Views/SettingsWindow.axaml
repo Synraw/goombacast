@@ -140,39 +140,23 @@
                                 VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20" Spacing="25" MaxWidth="700">
 
-                            <!-- Connection Settings -->
+                            <!-- Server Profile Selection -->
                             <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
                                 <StackPanel Spacing="15">
-                                    <TextBlock Text="SERVER CONNECTION" Foreground="#99FFFFFF" 
+                                    <TextBlock Text="CURRENT SERVER PROFILE" Foreground="#99FFFFFF" 
                                              FontSize="12" FontWeight="SemiBold"/>
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Server Address" Foreground="White"/>
-                                        <TextBox Text="{Binding ServerAddress}"
-                                                ToolTip.Tip="Enter the server address (e.g., https://example.com:8005/station-name/source.mp3)"/>
-                                    </StackPanel>
                                     
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Username" Foreground="White"/>
-                                        <TextBox Text="{Binding Username}"/>
-                                    </StackPanel>
-                                    
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Password" Foreground="White"/>
-                                        <TextBox Text="{Binding Password}" PasswordChar="*"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Stream Settings -->
-                            <Border Background="#20FFFFFF" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="15">
-                                    <TextBlock Text="STREAM SETTINGS" Foreground="#99FFFFFF" 
-                                             FontSize="12" FontWeight="SemiBold"/>
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Stream Name" Foreground="White"/>
-                                        <TextBox Text="{Binding StreamName}"
-                                                ToolTip.Tip="Enter the stream name (e.g., My Local Icecast Stream)"/>
-                                    </StackPanel>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                        <TextBlock Grid.Column="0"
+                                                  Text="{Binding CurrentProfileName}" 
+                                                  Foreground="White"
+                                                  FontSize="16"
+                                                  FontWeight="SemiBold"
+                                                  VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1" 
+                                               Content="Manage Profiles..."
+                                               Command="{Binding ManageServerProfilesCommand}"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

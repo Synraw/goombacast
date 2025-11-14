@@ -77,8 +77,6 @@ namespace GoombaCast.Services
 
         public AudioEngine(SynchronizationContext? uiContext)
         {
-            ValidateSettings();
-
             _icecastStream = new IcecastStream();
             _mixer = new AudioMixerHandler();
             _mixerStream = new VirtualMixerStream(_icecastStream);
@@ -87,18 +85,6 @@ namespace GoombaCast.Services
             SetupProcessingChain();
 
             _mixerStream.Start();
-        }
-
-        private static void ValidateSettings()
-        {
-            var settings = SettingsService.Default.Settings;
-            ArgumentNullException.ThrowIfNull(settings.ServerAddress, nameof(settings.ServerAddress));
-
-            if (!Uri.TryCreate(settings.ServerAddress, UriKind.Absolute, out _))
-            {
-                Logging.LogWarning($"Invalid server address in settings: {settings.ServerAddress}");
-                settings.ServerAddress = string.Empty;
-            }
         }
 
         private void InitializeAudioHandlers(SynchronizationContext? uiContext)
